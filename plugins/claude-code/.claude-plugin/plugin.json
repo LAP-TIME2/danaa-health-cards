@@ -1,0 +1,16 @@
+{
+  "name": "danaa-health-cards",
+  "version": "0.1.0",
+  "description": "DANAA health check-in cards for Claude Code.",
+  "author": "DANAA",
+  "license": "Apache-2.0",
+  "mcpServers": {
+    "danaa-health-cards": {
+      "command": "danaa-health-cards-mcp",
+      "env": {
+        "DANAA_API_BASE": "${DANAA_API_BASE}",
+        "DANAA_HEALTH_TOKEN": "${DANAA_HEALTH_TOKEN}"
+      }
+    }
+  }
+}
