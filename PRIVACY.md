@@ -22,7 +22,7 @@ The plugin does not send:
 
 ## Local Storage
 
-The MVP does not write access tokens, refresh tokens, or health answers into plugin configuration files. Users provide the token through an environment variable.
+Setup stores the external access token in the OS keyring. The plugin does not write access tokens, refresh tokens, or health answers into Claude/Codex configuration files. Developers can still override with `DANAA_HEALTH_TOKEN` for local testing.
 
 ## Server Storage
 

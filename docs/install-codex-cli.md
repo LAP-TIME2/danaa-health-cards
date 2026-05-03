@@ -1,15 +1,15 @@
 # Install for Codex CLI
 
-MCP command:
+One-line install:
 
 ```bash
-npx -y github:LAP-TIME2/danaa-health-cards
+npx -y github:LAP-TIME2/danaa-health-cards setup codex
 ```
 
-Login:
+Dry-run:
 
 ```bash
-npx -y github:LAP-TIME2/danaa-health-cards login
+npx -y github:LAP-TIME2/danaa-health-cards setup codex --dry-run
 ```
 
 Local backend development only:

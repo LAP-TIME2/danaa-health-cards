@@ -3,13 +3,13 @@
 Run one command:
 
 ```bash
-claude mcp add danaa-health-cards -- npx -y github:LAP-TIME2/danaa-health-cards
+npx -y github:LAP-TIME2/danaa-health-cards setup claude
 ```
 
-Then connect your DANAA account:
+Dry-run:
 
 ```bash
-npx -y github:LAP-TIME2/danaa-health-cards login
+npx -y github:LAP-TIME2/danaa-health-cards setup claude --dry-run
 ```
 
-The login command uses the deployed DANAA API by default and does not ask for localhost.
+Setup saves the DANAA token to the OS keyring and registers Claude Code without writing the token to Claude config.

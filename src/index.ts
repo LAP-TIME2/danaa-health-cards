@@ -3,7 +3,7 @@
 import { printError, runCli } from "./cli.js";
 import { runServer } from "./server.js";
 
-const cliCommands = new Set(["login", "checkin", "help", "--help", "-h"]);
+const cliCommands = new Set(["setup", "login", "checkin", "logout", "doctor", "help", "--help", "-h"]);
 const command = process.argv[2];
 
 try {
