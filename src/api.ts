@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+export const DEFAULT_DANAA_API_BASE = "https://danaa-project.vercel.app/api/v1";
+
 export type DanaaQuestion = {
   field: string;
   summary_label: string;
@@ -51,8 +53,16 @@ export class DanaaApiError extends Error {
   }
 }
 
+export function normalizeApiBase(apiBase: string): string {
+  return apiBase.replace(/\/$/, "");
+}
+
+export function setApiBase(apiBase: string): void {
+  process.env.DANAA_API_BASE = normalizeApiBase(apiBase);
+}
+
 export function getApiBase(): string {
-  return (process.env.DANAA_API_BASE ?? "http://localhost:8000/api/v1").replace(/\/$/, "");
+  return normalizeApiBase(process.env.DANAA_API_BASE ?? DEFAULT_DANAA_API_BASE);
 }
 
 export function getTokenFromEnv(): string {
@@ -83,13 +93,26 @@ export async function danaaFetch<T>(path: string, options: RequestOptions = {}):
     headers["Idempotency-Key"] = options.idempotencyKey;
   }
 
-  const response = await fetch(`${getApiBase()}${path}`, {
-    method: options.method ?? "GET",
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body)
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBase()}${path}`, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+    });
+  } catch (error) {
+    throw new DanaaApiError("DANAA API is unreachable", 0, {
+      api_base: getApiBase(),
+      cause: error instanceof Error ? error.message : String(error)
+    });
+  }
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
+  let payload: unknown = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { raw: text.slice(0, 500) };
+  }
   if (!response.ok) {
     throw new DanaaApiError(`DANAA API returned ${response.status}`, response.status, payload);
   }

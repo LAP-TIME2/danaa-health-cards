@@ -1,5 +1,5 @@
 {
-  "name": "@danaa/health-cards",
+  "name": "danaa-health-cards",
   "version": "0.1.0",
   "description": "DANAA health check-in MCP server for Claude Code and Codex CLI.",
   "license": "Apache-2.0",
@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "bin": {
-    "danaa-health-cards": "dist/cli.js",
+    "danaa-health-cards": "dist/index.js",
     "danaa-health-cards-mcp": "dist/server.js"
   },
   "files": [
@@ -24,6 +24,7 @@
     "build": "tsc -p tsconfig.json",
     "dev:mcp": "tsx src/server.ts",
     "dev:cli": "tsx src/cli.ts",
+    "prepare": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

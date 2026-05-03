@@ -1,10 +1,16 @@
 #!/usr/bin/env node
+import { pathToFileURL } from "node:url";
+
 import {
+  DanaaApiError,
   danaaFetch,
   getApiBase,
+  nextCheckin,
+  setApiBase,
   type DanaaNextCheckin
 } from "./api.js";
 import { formatCard } from "./format.js";
+import { redact } from "./security/redact.js";
 
 type DeviceStart = {
   device_code: string;
@@ -22,6 +28,33 @@ type DeviceToken = {
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseArgs(args: string[]): { command: string; rest: string[] } {
+  const rest: string[] = [];
+  let command = "help";
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--api-base") {
+      const value = args[index + 1];
+      if (!value) {
+        throw new DanaaApiError("Missing value for --api-base", 400, { option: "--api-base" });
+      }
+      setApiBase(value);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--api-base=")) {
+      setApiBase(arg.slice("--api-base=".length));
+      continue;
+    }
+    if (command === "help") {
+      command = arg;
+    } else {
+      rest.push(arg);
+    }
+  }
+  return { command, rest };
 }
 
 async function login(): Promise<void> {
@@ -56,14 +89,44 @@ async function login(): Promise<void> {
 }
 
 async function checkin(): Promise<void> {
-  const card = await danaaFetch<DanaaNextCheckin>("/external/checkins/next", {
-    token: process.env.DANAA_HEALTH_TOKEN
-  });
+  const card: DanaaNextCheckin = await nextCheckin();
   console.log(formatCard(card));
 }
 
-async function main(): Promise<void> {
-  const command = process.argv[2] ?? "help";
+function printHelp(): void {
+  console.log(`DANAA Health Cards
+
+Usage:
+  danaa-health-cards login [--api-base <url>]
+  danaa-health-cards checkin [--api-base <url>]
+  danaa-health-cards mcp
+
+One-line Claude Code install:
+  claude mcp add danaa-health-cards -- npx -y github:LAP-TIME2/danaa-health-cards
+
+Environment:
+  DANAA_API_BASE=${getApiBase()}
+  DANAA_HEALTH_TOKEN=<issued by login>
+`);
+}
+
+export function printError(error: unknown): void {
+  if (error instanceof DanaaApiError) {
+    console.error(redact(`DANAA error: ${error.message} (${error.status})`));
+    if (error.status === 404) {
+      console.error("The DANAA external check-in API is not available at the selected API base yet.");
+      console.error("For local backend testing, add: --api-base http://localhost:8000/api/v1");
+    }
+    if (error.status === 0) {
+      console.error("Check your network or use --api-base for a local DANAA backend.");
+    }
+    return;
+  }
+  console.error(redact(error instanceof Error ? error.message : String(error)));
+}
+
+export async function runCli(args = process.argv.slice(2)): Promise<void> {
+  const { command } = parseArgs(args);
   if (command === "login") {
     await login();
     return;
@@ -72,16 +135,15 @@ async function main(): Promise<void> {
     await checkin();
     return;
   }
-  console.log(`DANAA Health Cards
-
-Usage:
-  danaa-health-cards login
-  danaa-health-cards checkin
-
-Environment:
-  DANAA_API_BASE=${getApiBase()}
-  DANAA_HEALTH_TOKEN=<issued by login>
-`);
+  printHelp();
 }
 
-await main();
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isDirectRun) {
+  try {
+    await runCli();
+  } catch (error) {
+    printError(error);
+    process.exitCode = 1;
+  }
+}

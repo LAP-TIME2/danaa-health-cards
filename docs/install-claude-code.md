@@ -1,19 +1,19 @@
 # Install for Claude Code
 
+One-line install:
+
 ```bash
-npm install -g @danaa/health-cards
-danaa-health-cards login
+claude mcp add danaa-health-cards -- npx -y github:LAP-TIME2/danaa-health-cards
 ```
 
-Set:
+Login:
 
 ```bash
-export DANAA_API_BASE="http://localhost:8000/api/v1"
-export DANAA_HEALTH_TOKEN="danaa_ext_..."
+npx -y github:LAP-TIME2/danaa-health-cards login
 ```
 
-Then register:
+Local backend development only:
 
 ```bash
-danaa-health-cards-mcp
+npx -y github:LAP-TIME2/danaa-health-cards login --api-base http://localhost:8000/api/v1
 ```

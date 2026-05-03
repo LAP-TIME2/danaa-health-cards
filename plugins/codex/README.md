@@ -1,8 +1,15 @@
 # Codex CLI Setup
 
-1. Install the package.
-2. Run `danaa-health-cards login`.
-3. Set `DANAA_HEALTH_TOKEN` and `DANAA_API_BASE`.
-4. Register `danaa-health-cards-mcp` as an MCP server in Codex CLI.
+Use the same MCP server entrypoint as Claude Code:
 
-This plugin uses the same MCP server as Claude Code.
+```bash
+npx -y github:LAP-TIME2/danaa-health-cards
+```
+
+Connect your DANAA account:
+
+```bash
+npx -y github:LAP-TIME2/danaa-health-cards login
+```
+
+The login command uses the deployed DANAA API by default and does not ask for localhost.
