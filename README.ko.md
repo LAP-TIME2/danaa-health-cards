@@ -4,12 +4,40 @@ Claude Code와 Codex CLI에서 DANAA 건강 체크인 카드를 사용할 수 �
 
 사용자는 AI 코딩 도구 안에서 짧은 건강질문을 보고, 번호로 직접 답변합니다. 플러그인은 코드, 터미널 출력, 대화 전문을 읽어서 자동 저장하지 않습니다. 사용자가 고른 답변만 DANAA 계정에 저장합니다.
 
-## 가장 쉬운 설치 방법: Claude Code에 그대로 붙여넣기
+## 퀵 스타트: Claude Code에 그대로 붙여넣기
+
+설치 링크:
+
+```text
+https://github.com/LAP-TIME2/danaa-health-cards.git
+```
 
 새 폴더에서 Claude Code를 실행한 뒤, 아래 문장을 그대로 입력하세요.
 
 ```text
-https://github.com/LAP-TIME2/danaa-health-cards.git 저장소를 현재 폴더에 clone한 뒤, danaa-health-cards 폴더로 들어가서 npm install, npm run build, npm link를 순서대로 실행해줘. 그 다음 danaa-health-cards-mcp 명령이 정상 인식되는지 확인해줘. 토큰이나 비밀번호는 파일에 저장하지 말고, 필요한 값은 나에게 물어봐.
+아래 설치 링크로 DANAA Health Cards를 설치하고 Claude Code에서 사용할 준비까지 한 번에 진행해줘.
+
+설치 링크:
+https://github.com/LAP-TIME2/danaa-health-cards.git
+
+진행 순서:
+1. 현재 폴더에 저장소를 clone해줘.
+2. danaa-health-cards 폴더로 이동해줘.
+3. npm install을 실행해줘.
+4. npm run build를 실행해줘.
+5. npm test를 실행해줘.
+6. npm link를 실행해줘.
+7. danaa-health-cards-mcp 명령이 인식되는지 확인해줘.
+8. Claude Code MCP 서버에 danaa-health-cards-mcp를 danaa-health-cards 이름으로 등록해줘.
+9. claude mcp list로 등록 여부를 확인해줘.
+10. DANAA 계정 연결이 필요하면 danaa-health-cards login을 실행하고, 나온 인증 URL과 user_code를 나에게 보여줘.
+
+중요:
+- 토큰, 비밀번호, 쿠키는 절대 파일에 저장하지 마.
+- .env 파일을 만들지 마.
+- GitHub에 push하지 마.
+- 설치와 연결 확인만 진행해.
+- 필요한 비밀번호나 토큰은 내가 직접 입력할 수 있게 물어봐.
 ```
 
 이 문장은 Claude Code에게 아래 작업을 부탁하는 뜻입니다.
@@ -19,6 +47,7 @@ git clone https://github.com/LAP-TIME2/danaa-health-cards.git
 cd danaa-health-cards
 npm install
 npm run build
+npm test
 npm link
 ```
 

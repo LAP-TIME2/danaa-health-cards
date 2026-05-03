@@ -4,28 +4,72 @@ Health check-in cards for Claude Code and Codex CLI.
 
 DANAA Health Cards lets a user answer short, server-approved health questions while working in an AI coding tool. It does not read code, chat transcripts, or medical records. It only saves the option the user explicitly selects.
 
-## Korean Quick Start for Claude Code
+## Quick Start: Copy This Into Claude Code
 
-Open Claude Code in a new folder, then paste this prompt:
+Install link:
 
 ```text
-https://github.com/LAP-TIME2/danaa-health-cards.git 저장소를 현재 폴더에 clone한 뒤, danaa-health-cards 폴더로 들어가서 npm install, npm run build, npm link를 순서대로 실행해줘. 그 다음 danaa-health-cards-mcp 명령이 정상 인식되는지 확인해줘. 토큰이나 비밀번호는 파일에 저장하지 말고, 필요한 값은 나에게 물어봐.
+https://github.com/LAP-TIME2/danaa-health-cards.git
 ```
 
-This tells Claude Code to run:
+Open Claude Code in a new empty folder, then paste this whole prompt:
+
+```text
+아래 설치 링크로 DANAA Health Cards를 설치하고 Claude Code에서 사용할 준비까지 한 번에 진행해줘.
+
+설치 링크:
+https://github.com/LAP-TIME2/danaa-health-cards.git
+
+진행 순서:
+1. 현재 폴더에 저장소를 clone해줘.
+2. danaa-health-cards 폴더로 이동해줘.
+3. npm install을 실행해줘.
+4. npm run build를 실행해줘.
+5. npm test를 실행해줘.
+6. npm link를 실행해줘.
+7. danaa-health-cards-mcp 명령이 인식되는지 확인해줘.
+8. Claude Code MCP 서버에 danaa-health-cards-mcp를 danaa-health-cards 이름으로 등록해줘.
+9. claude mcp list로 등록 여부를 확인해줘.
+10. DANAA 계정 연결이 필요하면 danaa-health-cards login을 실행하고, 나온 인증 URL과 user_code를 나에게 보여줘.
+
+중요:
+- 토큰, 비밀번호, 쿠키는 절대 파일에 저장하지 마.
+- .env 파일을 만들지 마.
+- GitHub에 push하지 마.
+- 설치와 연결 확인만 진행해.
+- 필요한 비밀번호나 토큰은 내가 직접 입력할 수 있게 물어봐.
+```
+
+This prompt tells Claude Code to run:
 
 ```powershell
 git clone https://github.com/LAP-TIME2/danaa-health-cards.git
 cd danaa-health-cards
 npm install
 npm run build
+npm test
 npm link
 ```
 
-After installation, ask Claude Code:
+If you prefer manual commands:
+
+```powershell
+mkdir "$env:USERPROFILE\Desktop\danaa-claude-test"
+cd "$env:USERPROFILE\Desktop\danaa-claude-test"
+git clone https://github.com/LAP-TIME2/danaa-health-cards.git
+cd danaa-health-cards
+npm install
+npm run build
+npm test
+npm link
+claude mcp add danaa-health-cards danaa-health-cards-mcp
+claude mcp list
+```
+
+After installation, test it in Claude Code:
 
 ```text
-danaa-health-cards-mcp를 Claude Code MCP 서버로 등록해줘. 이름은 danaa-health-cards로 해줘. 등록 후 claude mcp list로 확인해줘.
+다나아 건강 체크인 카드를 보여줘. danaa_checkin_next 도구를 사용해줘.
 ```
 
 Read the full Korean guide: [README.ko.md](README.ko.md)
