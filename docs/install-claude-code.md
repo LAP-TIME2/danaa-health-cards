@@ -20,6 +20,19 @@ Dry-run:
 npx -y github:LAP-TIME2/danaa-health-cards setup claude --dry-run
 ```
 
+If login gets confusing:
+
+- The setup command tries to open the DANAA approval page automatically.
+- If no browser opens, copy the printed URL into your browser.
+- If the wrong browser profile opens, copy the same URL into the browser profile where you are logged into DANAA.
+- If dots keep appearing in the terminal, it is waiting for browser approval.
+- If the code expires, rerun the same setup command.
+- In remote/headless terminals, use `--no-open`.
+
+```bash
+npx -y github:LAP-TIME2/danaa-health-cards setup claude --no-open
+```
+
 Local backend development only:
 
 ```bash

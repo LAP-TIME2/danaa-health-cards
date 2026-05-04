@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -54,12 +54,16 @@ type CliOptions = {
   dryRun: boolean;
   force: boolean;
   manualOnly: boolean;
+  noOpen: boolean;
   scope: SetupScope;
 };
 
 const MCP_NAME = "danaa-health-cards";
 const GITHUB_PACKAGE = "github:LAP-TIME2/danaa-health-cards";
 const AFTER_ANSWER_AUTO_SUPPRESS_MINUTES = 10;
+const ALLOWED_HTTPS_LOGIN_HOSTS = new Set(["danaa-project.vercel.app", "danaa.r-e.kr"]);
+const ALLOWED_LOCAL_LOGIN_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+const SENSITIVE_LOGIN_QUERY_KEY = /(?:^|_|\b)(access[_-]?token|refresh[_-]?token|token|jwt|secret|session|cookie|email|device[_-]?code|user[_-]?code)(?:$|_|\b)/iu;
 const SKILL_TEXT = `---
 name: danaa-checkin
 description: Use when the user asks for a DANAA health check-in card, replies with only health check-in option numbers, or says skip, snooze, 30분 뒤, 오늘 그만, or dnd.
@@ -88,6 +92,7 @@ function parseArgs(args: string[]): CliOptions {
   let dryRun = false;
   let force = false;
   let manualOnly = false;
+  let noOpen = false;
   let scope: SetupScope = "user";
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -101,6 +106,10 @@ function parseArgs(args: string[]): CliOptions {
     }
     if (arg === "--manual-only") {
       manualOnly = true;
+      continue;
+    }
+    if (arg === "--no-open") {
+      noOpen = true;
       continue;
     }
     if (arg === "--scope") {
@@ -139,18 +148,110 @@ function parseArgs(args: string[]): CliOptions {
       rest.push(arg);
     }
   }
-  return { command, rest, dryRun, force, manualOnly, scope };
+  return { command, rest, dryRun, force, manualOnly, noOpen, scope };
 }
 
-async function login(): Promise<void> {
+export function safeLoginUrl(url: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new DanaaApiError("DANAA login URL is invalid.", 500, {
+      error_code: "INVALID_LOGIN_URL"
+    });
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new DanaaApiError("DANAA login URL must be http or https.", 500, {
+      error_code: "UNSAFE_LOGIN_URL"
+    });
+  }
+  const isLocalHost = ALLOWED_LOCAL_LOGIN_HOSTS.has(parsed.hostname);
+  const isDanaaHttpsHost = ALLOWED_HTTPS_LOGIN_HOSTS.has(parsed.hostname);
+  if (!isLocalHost && !isDanaaHttpsHost) {
+    throw new DanaaApiError("DANAA login URL host is not allowed.", 500, {
+      error_code: "UNTRUSTED_LOGIN_URL_HOST"
+    });
+  }
+  if (!isLocalHost && parsed.protocol !== "https:") {
+    throw new DanaaApiError("DANAA login URL must use https outside local development.", 500, {
+      error_code: "INSECURE_LOGIN_URL"
+    });
+  }
+  for (const key of parsed.searchParams.keys()) {
+    if (SENSITIVE_LOGIN_QUERY_KEY.test(key)) {
+      throw new DanaaApiError("DANAA login URL must not contain sensitive query values.", 500, {
+        error_code: "SENSITIVE_LOGIN_URL"
+      });
+    }
+  }
+  return parsed.toString();
+}
+
+export function browserOpenCommand(url: string): { command: string; args: string[] } {
+  const safeUrl = safeLoginUrl(url);
+
+  if (process.platform === "win32") {
+    return {
+      command: "rundll32.exe",
+      args: ["url.dll,FileProtocolHandler", safeUrl]
+    };
+  }
+  if (process.platform === "darwin") {
+    return { command: "open", args: [safeUrl] };
+  }
+  return { command: "xdg-open", args: [safeUrl] };
+}
+
+export function manualOpenInstruction(url: string): string {
+  return `Copy this URL into the browser you want to use: ${safeLoginUrl(url)}`;
+}
+
+function openBrowser(url: string): boolean {
+  try {
+    const { command, args } = browserOpenCommand(url);
+    const opened = spawnSync(command, args, {
+      encoding: "utf8",
+      stdio: "ignore",
+      timeout: 10_000,
+      windowsHide: true
+    });
+    return opened.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+export function loginInstructionLines(
+  verificationUri: string,
+  userCode: string,
+  state: "opened" | "failed" | "skipped"
+): string[] {
+  const safeUri = safeLoginUrl(verificationUri);
+  const firstLine =
+    state === "opened"
+      ? `1. Browser open requested: ${safeUri}`
+      : state === "skipped"
+        ? `1. Browser auto-open skipped: ${safeUri}`
+        : `1. Browser auto-open failed. Open this URL manually: ${safeUri}`;
+  return [
+    firstLine,
+    `   If the browser did not open or opened in the wrong profile, ${manualOpenInstruction(safeUri)}`,
+    `2. Enter code: ${userCode}`,
+    "3. After approving in DANAA, keep this terminal open.",
+    "   Dots mean the CLI is waiting for browser approval. If the code expires, rerun the same setup command."
+  ];
+}
+
+async function login(options: Pick<CliOptions, "noOpen"> = { noOpen: false }): Promise<void> {
   const start = await danaaFetch<DeviceStart>("/external-auth/device/start", {
     method: "POST",
     body: { client_name: "DANAA Health Cards CLI", client_type: "cli" }
   });
   console.log("DANAA device login");
-  console.log(`1. Open: ${start.verification_uri}`);
-  console.log(`2. Enter code: ${start.user_code}`);
-  console.log("3. After approving in DANAA, keep this terminal open.");
+  const browserOpened = options.noOpen ? false : openBrowser(start.verification_uri);
+  loginInstructionLines(start.verification_uri, start.user_code, options.noOpen ? "skipped" : browserOpened ? "opened" : "failed").forEach((line) =>
+    console.log(line)
+  );
 
   const deadline = Date.now() + start.expires_in * 1000;
   while (Date.now() < deadline) {
@@ -382,16 +483,28 @@ function registerMcp(
   console.log(`${client} MCP server '${MCP_NAME}' registered.`);
 }
 
+function backupFile(filePath: string): string | null {
+  if (!existsSync(filePath)) return null;
+  const backupPath = `${filePath}.bak-${Date.now()}`;
+  copyFileSync(filePath, backupPath);
+  return backupPath;
+}
+
 function readJsonFile(filePath: string): Record<string, unknown> {
   try {
     return JSON.parse(readFileSync(filePath, "utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
+  } catch (error) {
+    if (!existsSync(filePath)) return {};
+    throw new DanaaApiError(`Could not read ${filePath} as JSON. Fix or rename that file, then rerun setup.`, 1, {
+      error_code: "CONFIG_JSON_INVALID",
+      cause: error instanceof Error ? error.message : String(error)
+    });
   }
 }
 
 function writeJsonFile(filePath: string, value: unknown): void {
   mkdirSync(path.dirname(filePath), { recursive: true });
+  backupFile(filePath);
   writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
@@ -429,16 +542,21 @@ function updateCodexHooksFeature(configPath: string): void {
   } catch {
     content = "";
   }
-  if (content.match(/^\[features\]/m)) {
-    if (content.match(/^codex_hooks\s*=/m)) {
-      content = content.replace(/^codex_hooks\s*=.*$/m, "codex_hooks = true");
-    } else {
-      content = content.replace(/^\[features\]\s*$/m, "[features]\ncodex_hooks = true");
-    }
+  const featuresHeader = /^\s*\[features\]\s*$/imu;
+  if (featuresHeader.test(content)) {
+    const nextSectionAfterFeatures = /(^\s*\[features\]\s*$)([\s\S]*?)(?=^\s*\[[^\]]+\]\s*$|\s*$)/imu;
+    content = content.replace(nextSectionAfterFeatures, (_match, header: string, body: string) => {
+      if (/^\s*codex_hooks\s*=/imu.test(body)) {
+        return `${header}${body.replace(/^\s*codex_hooks\s*=.*$/imu, "codex_hooks = true")}`;
+      }
+      const separator = body.length === 0 ? "\n" : body.endsWith("\n") ? "" : "\n";
+      return `${header}${body}${separator}codex_hooks = true\n`;
+    });
   } else {
     content = `${content.trimEnd()}\n\n[features]\ncodex_hooks = true\n`;
   }
   mkdirSync(path.dirname(configPath), { recursive: true });
+  backupFile(configPath);
   writeFileSync(configPath, content, "utf8");
 }
 
@@ -499,7 +617,10 @@ function installAutomation(
   installSkill(client, options);
 }
 
-async function setup(target: string, options: Pick<CliOptions, "dryRun" | "force" | "manualOnly" | "scope">): Promise<void> {
+async function setup(
+  target: string,
+  options: Pick<CliOptions, "dryRun" | "force" | "manualOnly" | "noOpen" | "scope">
+): Promise<void> {
   const normalizedTarget = target || "all";
   if (!["claude", "codex", "all"].includes(normalizedTarget)) {
     throw new DanaaApiError("Setup target must be one of: claude, codex, all.", 400, {
@@ -509,6 +630,12 @@ async function setup(target: string, options: Pick<CliOptions, "dryRun" | "force
 
   const targets = normalizedTarget === "all" ? (["claude", "codex"] as const) : ([normalizedTarget] as Array<"claude" | "codex">);
 
+  if (!options.dryRun) {
+    for (const client of targets) {
+      ensureToolAvailable(client);
+    }
+  }
+
   if (options.dryRun) {
     console.log(`[dry-run] Would use DANAA API: ${getApiBase()}`);
     console.log("[dry-run] Would reuse a valid OS keyring token, or start device login if no valid token exists.");
@@ -517,7 +644,7 @@ async function setup(target: string, options: Pick<CliOptions, "dryRun" | "force
       console.log("Existing DANAA token is valid. Skipping device login.");
       ensureInstalledAt();
     } else {
-      await login();
+      await login({ noOpen: options.noOpen });
     }
   }
 
@@ -662,8 +789,8 @@ function printHelp(): void {
   console.log(`DANAA Health Cards
 
 Usage:
-  danaa-health-cards setup claude|codex|all [--scope user|local] [--manual-only] [--dry-run] [--force]
-  danaa-health-cards login [--api-base <url>]
+  danaa-health-cards setup claude|codex|all [--scope user|local] [--manual-only] [--no-open] [--dry-run] [--force]
+  danaa-health-cards login [--api-base <url>] [--no-open]
   danaa-health-cards checkin [--api-base <url>]
   danaa-health-cards answer-latest 1 2
   danaa-health-cards skip-latest
@@ -677,6 +804,7 @@ One-line setup:
   npx -y github:LAP-TIME2/danaa-health-cards setup claude
   npx -y github:LAP-TIME2/danaa-health-cards setup codex
   npx -y github:LAP-TIME2/danaa-health-cards setup all
+  npx -y github:LAP-TIME2/danaa-health-cards setup claude --no-open
 
 Environment:
   DANAA_API_BASE=${getApiBase()}
@@ -699,13 +827,13 @@ export function printError(error: unknown): void {
 }
 
 export async function runCli(args = process.argv.slice(2)): Promise<void> {
-  const { command, rest, dryRun, force, manualOnly, scope } = parseArgs(args);
+  const { command, rest, dryRun, force, manualOnly, noOpen, scope } = parseArgs(args);
   if (command === "setup") {
-    await setup(rest[0] ?? "all", { dryRun, force, manualOnly, scope });
+    await setup(rest[0] ?? "all", { dryRun, force, manualOnly, noOpen, scope });
     return;
   }
   if (command === "login") {
-    await login();
+    await login({ noOpen });
     return;
   }
   if (command === "checkin") {
