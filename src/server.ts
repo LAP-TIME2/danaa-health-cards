@@ -95,6 +95,23 @@ server.tool("danaa_checkin_next", "Get the next server-approved DANAA health che
 });
 
 server.tool(
+  "danaa_checkin_show_latest",
+  "Show the latest pending DANAA health check-in card without requesting a new server lease.",
+  {},
+  async () => {
+    try {
+      const latest = latestCard();
+      if (!latest) {
+        return text("No pending DANAA card was found. Ask for a new check-in first.");
+      }
+      return text(formatCard(latest.card));
+    } catch (error) {
+      return errorText(error);
+    }
+  }
+);
+
+server.tool(
   "danaa_checkin_answer_numbers",
   "Answer the latest DANAA health check-in with option numbers in question order.",
   {

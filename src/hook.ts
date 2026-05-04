@@ -1,5 +1,5 @@
 import { DanaaApiError, nextCheckin } from "./api.js";
-import { formatAutoCardPrompt } from "./format.js";
+import { formatAutoHookInstruction } from "./format.js";
 import { ensureInstalledAt, isFuture, readState, rememberLatestCard, updateState } from "./local-state.js";
 
 type HookClient = "claude" | "codex";
@@ -58,7 +58,7 @@ export async function runStopHook(client: HookClient): Promise<void> {
     if (!card.has_question || !card.lease_id) return;
 
     rememberLatestCard(card);
-    outputContinuation(formatAutoCardPrompt(card));
+    outputContinuation(formatAutoHookInstruction(card));
   } catch (error) {
     if (!(error instanceof DanaaApiError)) {
       return;
