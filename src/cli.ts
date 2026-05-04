@@ -211,16 +211,20 @@ function formatShellCommand(command: string, args: string[]): string {
 }
 
 function resolveExecutable(command: string): string {
-  if (process.platform !== "win32") return command;
-  if (path.extname(command)) return command;
-  return `${command}.cmd`;
+  return command;
 }
 
 function runCommand(command: string, args: string[]): { ok: boolean; output: string } {
-  const spawned = spawnSync(resolveExecutable(command), args, {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
-  });
+  const spawned =
+    process.platform === "win32"
+      ? spawnSync("cmd.exe", ["/d", "/c", formatShellCommand(resolveExecutable(command), args)], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"]
+        })
+      : spawnSync(resolveExecutable(command), args, {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"]
+        });
   const output = `${spawned.stdout ?? ""}${spawned.stderr ?? ""}`;
   return { ok: spawned.status === 0, output };
 }

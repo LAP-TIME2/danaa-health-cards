@@ -17,7 +17,7 @@ export type LocalState = {
 export function getDataDir(): string {
   if (process.env.DANAA_HEALTH_CARDS_HOME) return process.env.DANAA_HEALTH_CARDS_HOME;
   if (process.platform === "win32" && process.env.LOCALAPPDATA) {
-    return path.join(process.env.LOCALAPPDATA, "DANAA Health Cards");
+    return path.join(process.env.LOCALAPPDATA, "danaa-health-cards");
   }
   return path.join(os.homedir(), ".danaa-health-cards");
 }
