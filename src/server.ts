@@ -49,6 +49,26 @@ function answersFromNumbers(card: DanaaNextCheckin, answerNumbers: number[]): Re
   return answers;
 }
 
+function completionHint(nextCard: DanaaNextCheckin): string {
+  if (nextCard.has_question) {
+    return '아직 오늘 입력할 건강 카드가 남아 있어요. 필요할 때 "질문카드 보여줘"라고 말하면 다음 카드를 이어서 보여드릴게요.';
+  }
+  return "오늘 필요한 건강 체크인은 모두 완료됐어요.";
+}
+
+async function answerCompletionHint(): Promise<string> {
+  try {
+    const nextCard = await nextCheckin();
+    return completionHint(nextCard);
+  } catch {
+    return '필요할 때 "질문카드 보여줘"라고 말하면 다음 건강 체크인을 확인할 수 있어요.';
+  }
+}
+
+async function resultWithCompletionHint(result: unknown): Promise<string> {
+  return `${typeof result === "string" ? result : JSON.stringify(result, null, 2)}\n\n${await answerCompletionHint()}`;
+}
+
 function text(content: unknown) {
   return {
     content: [
@@ -97,7 +117,7 @@ server.tool(
       const result = await answerCheckin(leaseId, answers, idempotencyKey);
       leaseCache.delete(leaseId);
       clearLatestCard(leaseId);
-      return text(result);
+      return text(await resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -117,7 +137,7 @@ server.tool(
       const result = await answerCheckin(leaseId, answers, idempotencyKey);
       leaseCache.delete(leaseId);
       clearLatestCard(leaseId);
-      return text(result);
+      return text(await resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -136,7 +156,7 @@ server.tool(
       const result = await skipCheckin(leaseId, idempotencyKey);
       leaseCache.delete(leaseId);
       clearLatestCard(leaseId);
-      return text(result);
+      return text(await resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -163,7 +183,7 @@ server.tool(
       );
       leaseCache.delete(latest.leaseId);
       clearLatestCard(latest.leaseId);
-      return text(result);
+      return text(await resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -185,7 +205,7 @@ server.tool(
       const result = await skipCheckin(latest.leaseId, idempotencyKey);
       leaseCache.delete(latest.leaseId);
       clearLatestCard(latest.leaseId);
-      return text(result);
+      return text(await resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
