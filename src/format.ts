@@ -21,6 +21,11 @@ const OPTION_LABELS: Record<string, string> = {
   one: "한 번",
   two_plus: "두 번 이상",
   yes: "예",
+  under_5: "5시간 미만",
+  between_5_6: "5~6시간",
+  between_6_7: "6~7시간",
+  between_7_8: "7~8시간",
+  over_8: "8시간 이상",
   less_than_5h: "5시간 미만",
   "5_6h": "5~6시간",
   "6_7h": "6~7시간",
@@ -48,16 +53,23 @@ function formatDateTime(value?: string | null): string | null {
   }).format(new Date(timestamp));
 }
 
+function cleanQuestionText(value: string): string {
+  return value.replace(/^\s*Q\d+\s*[.)]\s*/iu, "").trim();
+}
+
 export function formatQuestion(question: DanaaQuestion, index: number): string {
-  const lines = [`Q${index + 1}. ${question.summary_label} - ${question.text}`];
+  const summary = cleanQuestionText(question.summary_label);
+  const text = cleanQuestionText(question.text);
+  const header = summary && text && summary !== text ? `${summary} - ${text}` : summary || text;
+  const lines = [`Q${index + 1}. ${header}`];
   if (question.input_type === "number") {
     lines.push("숫자로 답해주세요.");
     return lines.join("\n");
   }
   lines.push(
     question.options
-      .map((option, optionIndex) => `${optionIndex + 1}. ${formatOption(option)}`)
-      .join("  ")
+      .map((option, optionIndex) => `${optionIndex + 1}) ${formatOption(option)}`)
+      .join("\n")
   );
   return lines.join("\n");
 }

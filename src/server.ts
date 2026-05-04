@@ -17,7 +17,7 @@ import {
   type DanaaNextCheckin
 } from "./api.js";
 import { formatAutomationStatus, formatCard, formatPostAnswerHint } from "./format.js";
-import { clearLatestCard, isFuture, readState, rememberLatestCard, suppressAutoForMinutes, updateState } from "./local-state.js";
+import { clearLatestCard, completeLatestCard, isFuture, readState, rememberLatestCard, updateState } from "./local-state.js";
 import { redact } from "./security/redact.js";
 
 const leaseCache = new Map<string, DanaaNextCheckin>();
@@ -70,12 +70,12 @@ export function answersFromNumbers(
   return answers;
 }
 
-function suppressAutoAfterAnswer(): void {
-  suppressAutoForMinutes(AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
+function finishLatestLease(leaseId: string): void {
+  leaseCache.delete(leaseId);
+  completeLatestCard(leaseId, AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
 }
 
-function resultWithCompletionHint(result: DanaaAnswerResponse): string {
-  suppressAutoAfterAnswer();
+export function resultWithCompletionHint(result: DanaaAnswerResponse): string {
   return `${redact(result.message || "기록 처리 완료")}\n\n${formatPostAnswerHint()}`;
 }
 
@@ -142,8 +142,7 @@ server.tool(
       }
       const answers = answersFromNumbers(card, answerNumbers);
       const result = await answerCheckin(leaseId, answers, idempotencyKey);
-      leaseCache.delete(leaseId);
-      clearLatestCard(leaseId);
+      finishLatestLease(leaseId);
       return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
@@ -162,8 +161,7 @@ server.tool(
   async ({ leaseId, answers, idempotencyKey }) => {
     try {
       const result = await answerCheckin(leaseId, answers, idempotencyKey);
-      leaseCache.delete(leaseId);
-      clearLatestCard(leaseId);
+      finishLatestLease(leaseId);
       return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
@@ -181,8 +179,7 @@ server.tool(
   async ({ leaseId, idempotencyKey }) => {
     try {
       const result = await skipCheckin(leaseId, idempotencyKey);
-      leaseCache.delete(leaseId);
-      clearLatestCard(leaseId);
+      finishLatestLease(leaseId);
       return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
@@ -208,8 +205,7 @@ server.tool(
         answersFromNumbers(latest.card, answerNumbers),
         idempotencyKey
       );
-      leaseCache.delete(latest.leaseId);
-      clearLatestCard(latest.leaseId);
+      finishLatestLease(latest.leaseId);
       return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
@@ -230,8 +226,7 @@ server.tool(
         return text("지금 건너뛸 DANAA 질문카드는 없어요. 남은 질문이 있는지는 \"질문카드 보여줘\"로 새로 확인해주세요.");
       }
       const result = await skipCheckin(latest.leaseId, idempotencyKey);
-      leaseCache.delete(latest.leaseId);
-      clearLatestCard(latest.leaseId);
+      finishLatestLease(latest.leaseId);
       return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);

@@ -54,6 +54,8 @@ npx -y github:LAP-TIME2/danaa-health-cards setup claude --manual-only
 npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only
 ```
 
+Windows의 Codex 환경에서 `Stop hook failed` 또는 `CreateProcessAsUser failed: 5`가 반복되면 수동 모드를 쓰세요. 이 오류는 DANAA Node.js 코드가 실행되기 전에 Codex/Windows 실행 환경에서 나는 오류라서, 안전한 우회 방법은 자동 훅만 끄고 MCP 체크인은 그대로 쓰는 것입니다.
+
 미리보기 실행:
 
 ```powershell
@@ -88,7 +90,7 @@ Codex는 MCP 도구를 처음 실행할 때 보안 확인창을 띄울 수 있�
 3. Always allow
 ```
 
-이 선택은 사용자가 직접 해야 합니다. DANAA 플러그인이 몰래 자동 승인하지 않습니다. 대신 한 번 `Always allow`를 선택하면 같은 DANAA 도구 호출에서는 반복 확인이 줄어듭니다.
+이 선택은 사용자가 직접 해야 합니다. DANAA 플러그인이 몰래 자동 승인하지 않습니다. 대신 한 번 `Always allow`를 선택하면 같은 DANAA 도구 호출에서는 반복 확인이 줄어듭니다. Windows Codex에서 Stop hook 오류가 계속 나면 `npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only`를 실행하고 `질문카드 보여줘`로 수동 체크인을 쓰면 됩니다.
 
 ## 이미 오늘 질문카드를 다 답한 계정으로 테스트할 때
 
