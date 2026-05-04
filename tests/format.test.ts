@@ -82,6 +82,67 @@ describe("formatCard", () => {
     expect(rendered).not.toContain("two_plus");
   });
 
+  it("localizes breakfast option codes instead of generic fallback labels", () => {
+    const rendered = formatCard({
+      has_question: true,
+      lease_id: "lease-breakfast",
+      bundle_key: "bundle_2",
+      bundle_name: "아침식사",
+      log_date: "2026-05-05",
+      expires_at: "2026-05-05T10:00:00+09:00",
+      notice: "Lifestyle check-in only",
+      questions: [
+        {
+          field: "breakfast_status",
+          summary_label: "아침 식사 여부",
+          text: "아침 드셨어요? 🍳",
+          input_type: "select",
+          options: ["hearty", "skipped"]
+        },
+        {
+          field: "took_medication",
+          summary_label: "복약 여부",
+          text: "오늘 약은 챙겨 드셨나요? 💊",
+          input_type: "select",
+          options: [true, false]
+        }
+      ]
+    });
+
+    expect(rendered).toContain("선택: 1. 든든하게 먹었어요 / 2. 거름");
+    expect(rendered).toContain("선택: 1. 예 / 2. 아니요");
+    expect(rendered).not.toContain("선택지 1");
+    expect(rendered).not.toContain("hearty");
+    expect(rendered).not.toContain("skipped");
+  });
+
+  it("localizes remaining bundled option codes used by DANAA server", () => {
+    const rendered = formatCard({
+      ...sampleCard,
+      questions: [
+        {
+          field: "exercise_type",
+          summary_label: "운동 종류",
+          text: "어떤 운동을 하셨나요?",
+          input_type: "select",
+          options: ["walking", "running", "cycling", "swimming", "gym", "home_workout", "other"]
+        },
+        {
+          field: "vegetable_intake_level",
+          summary_label: "채소 섭취",
+          text: "오늘 채소나 나물 반찬 드셨나요?",
+          input_type: "select",
+          options: ["enough", "little", "none"]
+        }
+      ]
+    });
+
+    expect(rendered).toContain("선택: 1. 걷기 / 2. 달리기 / 3. 자전거 / 4. 수영 / 5. 헬스장 / 6. 홈트 / 7. 기타");
+    expect(rendered).toContain("선택: 1. 충분 / 2. 조금 / 3. 없음");
+    expect(rendered).not.toContain("선택지");
+    expect(rendered).not.toContain("home_workout");
+  });
+
   it("does not expose unknown option enum values", () => {
     const rendered = formatCard({
       ...sampleCard,
