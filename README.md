@@ -1,12 +1,12 @@
 # DANAA Health Cards
 
-Health check-in cards for Claude Code and Codex CLI.
+Automatic health check-in cards for Claude Code and Codex CLI.
 
-DANAA Health Cards lets a user answer short, server-approved health questions while working in an AI coding tool. It does not read code, chat transcripts, terminal output, or medical records. It only saves the option the user explicitly selects.
+DANAA Health Cards lets a user answer short, server-approved health questions while working in an AI coding tool. With the automatic hook enabled, Claude Code or Codex CLI can append a short DANAA card after a normal answer finishes. It does not read code, chat transcripts, terminal output, or medical records. It only saves the option the user explicitly selects.
 
 ## Status
 
-Preview. The one-line setup commands are ready, but login needs the DANAA backend external API to be deployed at:
+Preview. The one-line setup commands are ready. Automatic check-ins need the DANAA backend external API and auto-policy endpoints to be deployed at:
 
 ```text
 https://danaa.r-e.kr/api/v1
@@ -39,9 +39,18 @@ These commands:
 - start DANAA device login
 - save the issued token to the OS keyring
 - register the MCP server in Claude Code and/or Codex CLI
+- register a Stop hook so a DANAA card can appear after a normal AI answer finishes
+- install a small skill guide so short replies like `1`, `skip`, `30분 뒤`, or `오늘 그만` are handled correctly
 - do not print the token
 - do not store the token in Claude/Codex config
 - do not ask users to choose localhost or production
+
+Manual-only install:
+
+```powershell
+npx -y github:LAP-TIME2/danaa-health-cards setup claude --manual-only
+npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only
+```
 
 Dry-run:
 
@@ -56,6 +65,10 @@ npx -y github:LAP-TIME2/danaa-health-cards setup codex --dry-run
 npx -y github:LAP-TIME2/danaa-health-cards --help
 npx -y github:LAP-TIME2/danaa-health-cards login
 npx -y github:LAP-TIME2/danaa-health-cards checkin
+npx -y github:LAP-TIME2/danaa-health-cards answer-latest 1
+npx -y github:LAP-TIME2/danaa-health-cards skip-latest
+npx -y github:LAP-TIME2/danaa-health-cards snooze 30m
+npx -y github:LAP-TIME2/danaa-health-cards dnd today
 npx -y github:LAP-TIME2/danaa-health-cards doctor
 ```
 
@@ -71,12 +84,17 @@ npx -y github:LAP-TIME2/danaa-health-cards login --api-base http://localhost:800
 - `danaa_checkin_answer_numbers`
 - `danaa_checkin_answer`
 - `danaa_checkin_skip`
+- `danaa_checkin_answer_latest_numbers`
+- `danaa_checkin_skip_latest`
+- `danaa_checkin_snooze`
+- `danaa_checkin_status`
 - `danaa_settings_get`
 - `danaa_settings_update`
 
 ## Safety
 
 - Explicit answer only: no automatic transcript extraction
+- Hook is non-blocking: network or token errors fail silently so coding work continues
 - Server lease required: answers must match a server-issued question
 - Consent required: DANAA rejects check-ins without health-data consent
 - Token is stored in the OS keyring, not in Claude/Codex config

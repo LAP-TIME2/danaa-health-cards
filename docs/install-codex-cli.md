@@ -6,6 +6,14 @@ One-line install:
 npx -y github:LAP-TIME2/danaa-health-cards setup codex
 ```
 
+This runs DANAA login, stores the token in the OS keyring, registers the MCP server, enables Codex hooks, installs the Stop hook, and installs the DANAA check-in skill.
+
+Manual-only install:
+
+```bash
+npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only
+```
+
 Dry-run:
 
 ```bash

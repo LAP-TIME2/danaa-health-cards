@@ -1,16 +1,32 @@
 #!/usr/bin/env node
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 import {
+  answerCheckin,
   DanaaApiError,
   danaaFetch,
   getApiBase,
   nextCheckin,
+  revokeExternalToken,
   setApiBase,
+  skipCheckin,
+  snoozeCheckin,
   type DanaaNextCheckin
 } from "./api.js";
 import { formatCard } from "./format.js";
+import { runStopHook } from "./hook.js";
+import {
+  clearLatestCard,
+  ensureInstalledAt,
+  getDataDir,
+  readState,
+  rememberLatestCard,
+  updateState
+} from "./local-state.js";
 import { redact } from "./security/redact.js";
 import { deleteStoredToken, saveStoredToken, TokenStoreError } from "./token-store.js";
 
@@ -28,15 +44,33 @@ type DeviceToken = {
   scopes: string[];
 };
 
+type SetupScope = "user" | "local";
+
 type CliOptions = {
   command: string;
   rest: string[];
   dryRun: boolean;
   force: boolean;
+  manualOnly: boolean;
+  scope: SetupScope;
 };
 
 const MCP_NAME = "danaa-health-cards";
 const GITHUB_PACKAGE = "github:LAP-TIME2/danaa-health-cards";
+const SKILL_TEXT = `---
+name: danaa-checkin
+description: Use when the previous assistant message contains DANAA_CARD_PENDING, when the user replies with only health check-in option numbers, or when the user says skip, snooze, 30분 뒤, 오늘 그만, dnd, or asks for a DANAA health check-in card.
+---
+
+# DANAA Check-in
+
+- If the user answers with numbers such as "1", "2 1", or "1,2", call \`danaa_checkin_answer_latest_numbers\` with the numbers in order.
+- If the user says skip, 스킵, 건너뛰기, call \`danaa_checkin_skip_latest\`.
+- If the user says 30분 뒤, 1시간 뒤, 오늘 그만, call \`danaa_checkin_snooze\`.
+- Never infer health answers from the surrounding coding conversation.
+- Never ask for or print tokens. DANAA tokens live in the OS keyring.
+- Keep wording short and say this is lifestyle tracking, not medical advice.
+`;
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -47,6 +81,8 @@ function parseArgs(args: string[]): CliOptions {
   let command = "help";
   let dryRun = false;
   let force = false;
+  let manualOnly = false;
+  let scope: SetupScope = "user";
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--dry-run") {
@@ -55,6 +91,27 @@ function parseArgs(args: string[]): CliOptions {
     }
     if (arg === "--force") {
       force = true;
+      continue;
+    }
+    if (arg === "--manual-only") {
+      manualOnly = true;
+      continue;
+    }
+    if (arg === "--scope") {
+      const value = args[index + 1];
+      if (value !== "user" && value !== "local") {
+        throw new DanaaApiError("--scope must be user or local", 400, { option: "--scope" });
+      }
+      scope = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--scope=")) {
+      const value = arg.slice("--scope=".length);
+      if (value !== "user" && value !== "local") {
+        throw new DanaaApiError("--scope must be user or local", 400, { option: "--scope" });
+      }
+      scope = value;
       continue;
     }
     if (arg === "--api-base") {
@@ -76,7 +133,7 @@ function parseArgs(args: string[]): CliOptions {
       rest.push(arg);
     }
   }
-  return { command, rest, dryRun, force };
+  return { command, rest, dryRun, force, manualOnly, scope };
 }
 
 async function login(): Promise<void> {
@@ -111,6 +168,7 @@ async function login(): Promise<void> {
         }
         throw error;
       }
+      ensureInstalledAt();
       console.log("DANAA token saved to your OS keyring.");
       console.log("No token was printed or written to Claude/Codex config.");
       return;
@@ -129,21 +187,92 @@ async function login(): Promise<void> {
 
 async function checkin(): Promise<void> {
   const card: DanaaNextCheckin = await nextCheckin();
+  if (card.has_question) rememberLatestCard(card);
   console.log(formatCard(card));
 }
 
-function commandForClient(client: "claude" | "codex"): { command: string; args: string[] } {
+function quoteCmdArg(value: string): string {
+  if (!/[\\s"]/u.test(value)) return value;
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+function formatShellCommand(command: string, args: string[]): string {
+  return [command, ...args].map(quoteCmdArg).join(" ");
+}
+
+function runCommand(command: string, args: string[]): { ok: boolean; output: string } {
+  const spawned =
+    process.platform === "win32"
+      ? spawnSync("cmd.exe", ["/d", "/s", "/c", formatShellCommand(command, args)], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"]
+        })
+      : spawnSync(command, args, {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"]
+        });
+  const output = `${spawned.stdout ?? ""}${spawned.stderr ?? ""}`;
+  return { ok: spawned.status === 0, output };
+}
+
+function getRunnerDir(): string {
+  return path.join(getDataDir(), "runner");
+}
+
+function getRunnerEntry(): string {
+  return path.join(getRunnerDir(), "node_modules", "danaa-health-cards", "dist", "index.js");
+}
+
+function ensureLocalRunner(options: Pick<CliOptions, "dryRun">): string {
+  const runnerEntry = getRunnerEntry();
+  if (options.dryRun) {
+    console.log(`[dry-run] Would install stable runner under: ${getRunnerDir()}`);
+    console.log(`[dry-run] Would use runner entry: ${runnerEntry}`);
+    return runnerEntry;
+  }
+  mkdirSync(getRunnerDir(), { recursive: true });
+  const installed = runCommand("npm", [
+    "install",
+    "--prefix",
+    getRunnerDir(),
+    "--omit=dev",
+    "--no-audit",
+    "--no-fund",
+    GITHUB_PACKAGE
+  ]);
+  if (!installed.ok) {
+    throw new DanaaApiError("Failed to install the stable DANAA Health Cards runner.", 1, {
+      error_code: "RUNNER_INSTALL_FAILED",
+      output: redact(installed.output)
+    });
+  }
+  if (!existsSync(runnerEntry)) {
+    throw new DanaaApiError("DANAA runner was installed but the entry file was not found.", 1, {
+      error_code: "RUNNER_ENTRY_MISSING"
+    });
+  }
+  return runnerEntry;
+}
+
+function nodeCommand(entry: string, args: string[]): string {
+  return [process.execPath, entry, ...args].map(quoteCmdArg).join(" ");
+}
+
+function commandForClient(
+  client: "claude" | "codex",
+  runnerEntry: string,
+  scope: SetupScope
+): { command: string; args: string[] } {
+  const launcher = ["node", runnerEntry];
   if (client === "claude") {
-    const launcher = process.platform === "win32" ? ["cmd", "/c", "npx", "-y", GITHUB_PACKAGE] : ["npx", "-y", GITHUB_PACKAGE];
     return {
       command: "claude",
-      args: ["mcp", "add", "--scope", "local", MCP_NAME, "--", ...launcher]
+      args: ["mcp", "add", "--scope", scope, MCP_NAME, "--", ...launcher]
     };
   }
-
   return {
     command: "codex",
-    args: ["mcp", "add", MCP_NAME, "--", "npx", "-y", GITHUB_PACKAGE]
+    args: ["mcp", "add", MCP_NAME, "--", ...launcher]
   };
 }
 
@@ -154,25 +283,11 @@ function getCommandForClient(client: "claude" | "codex"): { command: string; arg
   return { command: "codex", args: ["mcp", "get", "--json", MCP_NAME] };
 }
 
-function removeCommandForClient(client: "claude" | "codex"): { command: string; args: string[] } {
+function removeCommandForClient(client: "claude" | "codex", scope: SetupScope): { command: string; args: string[] } {
   if (client === "claude") {
-    return { command: "claude", args: ["mcp", "remove", "--scope", "local", MCP_NAME] };
+    return { command: "claude", args: ["mcp", "remove", "--scope", scope, MCP_NAME] };
   }
   return { command: "codex", args: ["mcp", "remove", MCP_NAME] };
-}
-
-function runCommand(command: string, args: string[]): { ok: boolean; output: string } {
-  const result = spawnSync(command, args, {
-    encoding: "utf8",
-    shell: process.platform === "win32",
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
-  return { ok: result.status === 0, output };
-}
-
-function formatShellCommand(command: string, args: string[]): string {
-  return [command, ...args].join(" ");
 }
 
 function ensureToolAvailable(toolName: "claude" | "codex"): void {
@@ -184,10 +299,14 @@ function ensureToolAvailable(toolName: "claude" | "codex"): void {
   }
 }
 
-function registerMcp(client: "claude" | "codex", options: Pick<CliOptions, "dryRun" | "force">): void {
-  const add = commandForClient(client);
+function registerMcp(
+  client: "claude" | "codex",
+  runnerEntry: string,
+  options: Pick<CliOptions, "dryRun" | "force" | "scope">
+): void {
+  const add = commandForClient(client, runnerEntry, options.scope);
   const get = getCommandForClient(client);
-  const remove = removeCommandForClient(client);
+  const remove = removeCommandForClient(client, options.scope);
 
   if (options.dryRun) {
     console.log(`[dry-run] Would check: ${formatShellCommand(get.command, get.args)}`);
@@ -224,7 +343,124 @@ function registerMcp(client: "claude" | "codex", options: Pick<CliOptions, "dryR
   console.log(`${client} MCP server '${MCP_NAME}' registered.`);
 }
 
-async function setup(target: string, options: Pick<CliOptions, "dryRun" | "force">): Promise<void> {
+function readJsonFile(filePath: string): Record<string, unknown> {
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8")) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function writeJsonFile(filePath: string, value: unknown): void {
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function installClaudeHook(runnerEntry: string, options: Pick<CliOptions, "dryRun">): void {
+  const settingsPath = path.join(os.homedir(), ".claude", "settings.json");
+  const command = nodeCommand(runnerEntry, ["hook", "stop", "--client", "claude"]);
+  if (options.dryRun) {
+    console.log(`[dry-run] Would add Claude Stop hook to ${settingsPath}: ${command}`);
+    return;
+  }
+  const settings = readJsonFile(settingsPath);
+  const hooks = (settings.hooks && typeof settings.hooks === "object" ? settings.hooks : {}) as Record<string, unknown[]>;
+  const stopHooks = Array.isArray(hooks.Stop) ? hooks.Stop : [];
+  hooks.Stop = [
+    ...stopHooks.filter((entry) => JSON.stringify(entry).includes(MCP_NAME) === false),
+    {
+      hooks: [
+        {
+          type: "command",
+          command,
+          timeout: 5
+        }
+      ]
+    }
+  ];
+  settings.hooks = hooks;
+  writeJsonFile(settingsPath, settings);
+  console.log("Claude Stop hook registered.");
+}
+
+function updateCodexHooksFeature(configPath: string): void {
+  let content = "";
+  try {
+    content = readFileSync(configPath, "utf8");
+  } catch {
+    content = "";
+  }
+  if (content.match(/^\[features\]/m)) {
+    if (content.match(/^codex_hooks\s*=/m)) {
+      content = content.replace(/^codex_hooks\s*=.*$/m, "codex_hooks = true");
+    } else {
+      content = content.replace(/^\[features\]\s*$/m, "[features]\ncodex_hooks = true");
+    }
+  } else {
+    content = `${content.trimEnd()}\n\n[features]\ncodex_hooks = true\n`;
+  }
+  mkdirSync(path.dirname(configPath), { recursive: true });
+  writeFileSync(configPath, content, "utf8");
+}
+
+function installCodexHook(runnerEntry: string, options: Pick<CliOptions, "dryRun">): void {
+  const codexDir = path.join(os.homedir(), ".codex");
+  const hooksPath = path.join(codexDir, "hooks.json");
+  const configPath = path.join(codexDir, "config.toml");
+  const command = nodeCommand(runnerEntry, ["hook", "stop", "--client", "codex"]);
+  if (options.dryRun) {
+    console.log(`[dry-run] Would enable codex_hooks in ${configPath}`);
+    console.log(`[dry-run] Would add Codex Stop hook to ${hooksPath}: ${command}`);
+    return;
+  }
+  updateCodexHooksFeature(configPath);
+  const hooksJson = readJsonFile(hooksPath);
+  const hooks = (hooksJson.hooks && typeof hooksJson.hooks === "object" ? hooksJson.hooks : {}) as Record<string, unknown[]>;
+  const stopHooks = Array.isArray(hooks.Stop) ? hooks.Stop : [];
+  hooks.Stop = [
+    ...stopHooks.filter((entry) => JSON.stringify(entry).includes(MCP_NAME) === false),
+    {
+      hooks: [
+        {
+          type: "command",
+          command,
+          timeout: 5,
+          statusMessage: "Checking DANAA health card"
+        }
+      ]
+    }
+  ];
+  hooksJson.hooks = hooks;
+  writeJsonFile(hooksPath, hooksJson);
+  console.log("Codex Stop hook registered.");
+}
+
+function installSkill(client: "claude" | "codex", options: Pick<CliOptions, "dryRun">): void {
+  const baseDir =
+    client === "claude"
+      ? path.join(os.homedir(), ".claude", "skills", "danaa-checkin")
+      : path.join(os.homedir(), ".codex", "skills", "danaa-checkin");
+  const skillPath = path.join(baseDir, "SKILL.md");
+  if (options.dryRun) {
+    console.log(`[dry-run] Would write ${client} skill to ${skillPath}`);
+    return;
+  }
+  mkdirSync(baseDir, { recursive: true });
+  writeFileSync(skillPath, SKILL_TEXT, "utf8");
+  console.log(`${client} DANAA skill installed.`);
+}
+
+function installAutomation(
+  client: "claude" | "codex",
+  runnerEntry: string,
+  options: Pick<CliOptions, "dryRun">
+): void {
+  if (client === "claude") installClaudeHook(runnerEntry, options);
+  if (client === "codex") installCodexHook(runnerEntry, options);
+  installSkill(client, options);
+}
+
+async function setup(target: string, options: Pick<CliOptions, "dryRun" | "force" | "manualOnly" | "scope">): Promise<void> {
   const normalizedTarget = target || "all";
   if (!["claude", "codex", "all"].includes(normalizedTarget)) {
     throw new DanaaApiError("Setup target must be one of: claude, codex, all.", 400, {
@@ -237,31 +473,134 @@ async function setup(target: string, options: Pick<CliOptions, "dryRun" | "force
   if (options.dryRun) {
     console.log(`[dry-run] Would use DANAA API: ${getApiBase()}`);
     console.log("[dry-run] Would start device login and save token to OS keyring.");
-    for (const client of targets) registerMcp(client, options);
-    return;
+  } else {
+    await login();
   }
 
-  await login();
-  for (const client of targets) registerMcp(client, options);
-  console.log("Setup complete. Restart Claude Code/Codex if the new MCP server is not visible yet.");
+  const runnerEntry = ensureLocalRunner(options);
+  for (const client of targets) {
+    registerMcp(client, runnerEntry, options);
+    if (!options.manualOnly) {
+      installAutomation(client, runnerEntry, options);
+    }
+  }
+  console.log(
+    options.manualOnly
+      ? "Setup complete in manual MCP mode."
+      : "Setup complete. Restart Claude Code/Codex if the new MCP server or hook is not visible yet."
+  );
 }
 
-function logout(): void {
+function answerNumbersFromCard(card: DanaaNextCheckin, answerNumbers: number[]): Record<string, string | number | boolean> {
+  const answers: Record<string, string | number | boolean> = {};
+  card.questions.forEach((question, index) => {
+    const selectedNumber = answerNumbers[index];
+    if (selectedNumber === undefined) return;
+    if (question.input_type === "number") {
+      answers[question.field] = selectedNumber;
+      return;
+    }
+    const option = question.options[selectedNumber - 1];
+    if (option !== undefined) {
+      answers[question.field] = option;
+    }
+  });
+  return answers;
+}
+
+async function answerLatest(rawNumbers: string[]): Promise<void> {
+  const state = readState();
+  if (!state.latestLeaseId || !state.latestCard) {
+    throw new DanaaApiError("No pending DANAA card was found. Run `danaa-health-cards checkin` first.", 404, {
+      error_code: "LATEST_LEASE_MISSING"
+    });
+  }
+  const numbers = rawNumbers
+    .flatMap((value) => value.split(/[,\s]+/u))
+    .filter(Boolean)
+    .map((value) => Number(value));
+  if (numbers.length === 0 || numbers.some((value) => !Number.isInteger(value) || value <= 0)) {
+    throw new DanaaApiError("Answer numbers must be positive integers.", 400, {
+      error_code: "INVALID_ANSWER_NUMBERS"
+    });
+  }
+  const result = await answerCheckin(state.latestLeaseId, answerNumbersFromCard(state.latestCard, numbers));
+  clearLatestCard(state.latestLeaseId);
+  console.log(result.message);
+}
+
+async function skipLatest(): Promise<void> {
+  const state = readState();
+  if (!state.latestLeaseId) {
+    throw new DanaaApiError("No pending DANAA card was found. Run `danaa-health-cards checkin` first.", 404, {
+      error_code: "LATEST_LEASE_MISSING"
+    });
+  }
+  const result = await skipCheckin(state.latestLeaseId);
+  clearLatestCard(state.latestLeaseId);
+  console.log(result.message);
+}
+
+function parseDuration(value: string): 30 | 60 | 120 | 1440 {
+  const normalized = value.trim().toLowerCase();
+  if (["30m", "30min", "30분"].includes(normalized)) return 30;
+  if (["1h", "60m", "60min", "1시간"].includes(normalized)) return 60;
+  if (["2h", "120m", "120min", "2시간"].includes(normalized)) return 120;
+  if (["today", "오늘", "오늘그만"].includes(normalized)) return 1440;
+  throw new DanaaApiError("Duration must be 30m, 1h, 2h, or today.", 400, {
+    error_code: "INVALID_DURATION"
+  });
+}
+
+async function snooze(value: string): Promise<void> {
+  const duration = parseDuration(value || "1h");
+  const result = await snoozeCheckin(duration);
+  updateState((state) => ({ ...state, snoozeUntil: result.snoozed_until }));
+  console.log(result.message);
+}
+
+function dnd(value: string): void {
+  const normalized = value || "on";
+  if (normalized === "off") {
+    updateState((state) => ({ ...state, dndUntil: undefined }));
+    console.log("DANAA local DND is off.");
+    return;
+  }
+  const duration = normalized === "today" ? 1440 : 120;
+  const dndUntil = new Date(Date.now() + duration * 60 * 1000).toISOString();
+  updateState((state) => ({ ...state, dndUntil }));
+  console.log(`DANAA local DND is on until ${dndUntil}.`);
+}
+
+async function logout(): Promise<void> {
+  try {
+    await revokeExternalToken();
+  } catch {
+    // Local logout must still work if the server is unavailable or the token is already invalid.
+  }
   const deleted = deleteStoredToken();
   console.log(deleted ? "DANAA token removed from OS keyring." : "No DANAA token was found in OS keyring.");
 }
 
 function doctor(): void {
+  const state = readState();
   console.log(`DANAA Health Cards doctor
 
 API base:
   ${getApiBase()}
 
+Data directory:
+  ${getDataDir()}
+
 Token lookup order:
   1. DANAA_HEALTH_TOKEN environment variable
   2. OS keyring service "DANAA Health Cards"
 
-If setup fails at login with 404, the DANAA external API is not deployed yet.
+Automation:
+  latestLeaseId=${state.latestLeaseId ?? "(none)"}
+  snoozeUntil=${state.snoozeUntil ?? "(none)"}
+  dndUntil=${state.dndUntil ?? "(none)"}
+
 If setup fails at keyring, unlock your OS credential store and rerun setup.
 `);
 }
@@ -270,14 +609,16 @@ function printHelp(): void {
   console.log(`DANAA Health Cards
 
 Usage:
-  danaa-health-cards setup claude [--dry-run] [--force]
-  danaa-health-cards setup codex [--dry-run] [--force]
-  danaa-health-cards setup all [--dry-run] [--force]
+  danaa-health-cards setup claude|codex|all [--scope user|local] [--manual-only] [--dry-run] [--force]
   danaa-health-cards login [--api-base <url>]
   danaa-health-cards checkin [--api-base <url>]
+  danaa-health-cards answer-latest 1 2
+  danaa-health-cards skip-latest
+  danaa-health-cards snooze 30m|1h|2h|today
+  danaa-health-cards dnd on|off|today
+  danaa-health-cards hook stop --client claude|codex
   danaa-health-cards logout
   danaa-health-cards doctor
-  danaa-health-cards mcp
 
 One-line setup:
   npx -y github:LAP-TIME2/danaa-health-cards setup claude
@@ -287,6 +628,7 @@ One-line setup:
 Environment:
   DANAA_API_BASE=${getApiBase()}
   DANAA_HEALTH_TOKEN=<developer override>
+  DANAA_HEALTH_CARDS_ALLOW_EARLY=1  # test-only first-card bypass
 `);
 }
 
@@ -294,9 +636,7 @@ export function printError(error: unknown): void {
   if (error instanceof DanaaApiError) {
     console.error(redact(`DANAA error: ${error.message} (${error.status})`));
     if (error.status === 404) {
-      console.error("DANAA Health Cards installed correctly, but the DANAA external check-in API is not live at this API base yet.");
-      console.error("Users do not need to choose localhost or production. Try again after the DANAA backend deployment is updated.");
-      console.error("Developer override: --api-base http://localhost:8000/api/v1");
+      console.error("DANAA Health Cards could not find the requested DANAA resource.");
     }
     if (error.status === 0) {
       console.error("Check your network or use --api-base for a local DANAA backend.");
@@ -307,9 +647,9 @@ export function printError(error: unknown): void {
 }
 
 export async function runCli(args = process.argv.slice(2)): Promise<void> {
-  const { command, rest, dryRun, force } = parseArgs(args);
+  const { command, rest, dryRun, force, manualOnly, scope } = parseArgs(args);
   if (command === "setup") {
-    await setup(rest[0] ?? "all", { dryRun, force });
+    await setup(rest[0] ?? "all", { dryRun, force, manualOnly, scope });
     return;
   }
   if (command === "login") {
@@ -320,8 +660,30 @@ export async function runCli(args = process.argv.slice(2)): Promise<void> {
     await checkin();
     return;
   }
+  if (command === "answer-latest") {
+    await answerLatest(rest);
+    return;
+  }
+  if (command === "skip-latest") {
+    await skipLatest();
+    return;
+  }
+  if (command === "snooze") {
+    await snooze(rest[0] ?? "1h");
+    return;
+  }
+  if (command === "dnd") {
+    dnd(rest[0] ?? "on");
+    return;
+  }
+  if (command === "hook" && rest[0] === "stop") {
+    const clientIndex = rest.indexOf("--client");
+    const client = rest[clientIndex + 1] === "codex" ? "codex" : "claude";
+    await runStopHook(client);
+    return;
+  }
   if (command === "logout") {
-    logout();
+    await logout();
     return;
   }
   if (command === "doctor") {
