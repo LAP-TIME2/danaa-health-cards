@@ -35,6 +35,7 @@ function shouldSkipByLocalState(input: StopHookInput): boolean {
   const state = ensureInstalledAt();
   if (isFuture(state.snoozeUntil) || isFuture(state.dndUntil)) return true;
   if (input.turn_id && state.lastHookTurnId === input.turn_id) return true;
+  if (state.latestLeaseId && isFuture(state.latestCard?.expires_at ?? undefined)) return true;
 
   return false;
 }

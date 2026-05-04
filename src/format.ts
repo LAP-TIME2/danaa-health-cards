@@ -7,14 +7,16 @@ function formatOption(option: string | number | boolean): string {
 }
 
 export function formatQuestion(question: DanaaQuestion, index: number): string {
-  const lines = [`${index + 1}. ${question.summary_label}`, `   ${question.text}`];
+  const lines = [`Q${index + 1}. ${question.summary_label} - ${question.text}`];
   if (question.input_type === "number") {
-    lines.push("   숫자로 입력하세요.");
+    lines.push("숫자로 답해주세요.");
     return lines.join("\n");
   }
-  question.options.forEach((option, optionIndex) => {
-    lines.push(`   ${optionIndex + 1}) ${formatOption(option)}`);
-  });
+  lines.push(
+    question.options
+      .map((option, optionIndex) => `${optionIndex + 1}. ${formatOption(option)}`)
+      .join("  ")
+  );
   return lines.join("\n");
 }
 
@@ -22,28 +24,21 @@ export function formatCard(card: DanaaNextCheckin): string {
   if (!card.has_question) {
     return `DANAA 체크인: ${card.notice}`;
   }
+
+  const title = `DANAA 건강 체크인 카드입니다${card.bundle_name ? ` (${card.bundle_name})` : ""}.`;
+  const answerHint =
+    card.questions.length > 1
+      ? `답변하시려면 ${card.questions.length}개 질문의 번호를 알려주세요 (예: "1, 2").`
+      : '답변하시려면 번호를 알려주세요 (예: "1").';
+
   return [
-    `DANAA 건강 체크인 · ${card.bundle_name ?? card.bundle_key}`,
-    card.notice,
-    `lease_id: ${card.lease_id}`,
+    title,
     "",
-    ...card.questions.map((question, index) => formatQuestion(question, index)),
-    "",
-    "번호로 답하려면 `danaa_checkin_answer_latest_numbers` 도구에 answerNumbers를 질문 순서대로 넣으세요.",
-    "예: 질문이 2개면 answerNumbers: [2, 4]",
-    "건너뛰려면 `danaa_checkin_skip_latest` 도구를 사용하세요."
-  ].join("\n");
+    ...card.questions.flatMap((question, index) => [formatQuestion(question, index), ""]),
+    `${answerHint} 건너뛰고 싶으면 "건너뛰기"라고 말해주세요.`
+  ].join("\n").trim();
 }
 
 export function formatAutoCardPrompt(card: DanaaNextCheckin): string {
-  const cardBody = [
-    "이전 답변은 수정하지 말고, 맨 아래에 아래 DANAA 건강 체크인 블록만 짧게 덧붙이세요.",
-    "의료 진단이나 조언처럼 말하지 말고 생활습관 기록 보조로만 표현하세요.",
-    "사용자가 번호만 입력하면 danaa_checkin_answer_latest_numbers 도구를 사용하세요.",
-    "사용자가 skip, 스킵, 나중에, 오늘 그만이라고 답하면 skip/snooze 도구를 사용하세요.",
-    "",
-    "DANAA_CARD_PENDING",
-    formatCard(card).replace(/^lease_id:.*$/m, "답변 방식: 번호 / skip / 30분 뒤 / 오늘 그만")
-  ];
-  return cardBody.join("\n");
+  return formatCard(card);
 }
