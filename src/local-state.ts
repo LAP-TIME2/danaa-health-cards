@@ -10,6 +10,7 @@ export type LocalState = {
   latestLeaseId?: string;
   latestShownAt?: string;
   lastHookTurnId?: string;
+  autoSuppressedUntil?: string;
   snoozeUntil?: string;
   dndUntil?: string;
 };

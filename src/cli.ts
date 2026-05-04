@@ -60,7 +60,7 @@ const MCP_NAME = "danaa-health-cards";
 const GITHUB_PACKAGE = "github:LAP-TIME2/danaa-health-cards";
 const SKILL_TEXT = `---
 name: danaa-checkin
-description: Use when the previous assistant message contains DANAA_CARD_PENDING, when the user replies with only health check-in option numbers, or when the user says skip, snooze, 30분 뒤, 오늘 그만, dnd, or asks for a DANAA health check-in card.
+description: Use when the user asks for a DANAA health check-in card, replies with only health check-in option numbers, or says skip, snooze, 30분 뒤, 오늘 그만, or dnd.
 ---
 
 # DANAA Check-in
