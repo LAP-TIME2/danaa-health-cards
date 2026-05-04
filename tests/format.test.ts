@@ -109,8 +109,38 @@ describe("formatCard", () => {
       ]
     });
 
-    expect(rendered).toContain("선택: 1. 든든하게 먹었어요 / 2. 거름");
+    expect(rendered).toContain("선택: 1. 먹었어요 / 2. 못 먹었어요");
     expect(rendered).toContain("선택: 1. 예 / 2. 아니요");
+    expect(rendered).not.toContain("선택지 1");
+    expect(rendered).not.toContain("hearty");
+    expect(rendered).not.toContain("skipped");
+  });
+
+  it("prefers server-provided option labels when available", () => {
+    const rendered = formatCard({
+      has_question: true,
+      lease_id: "lease-server-labels",
+      bundle_key: "bundle_2",
+      bundle_name: "아침식사",
+      log_date: "2026-05-05",
+      expires_at: "2026-05-05T10:00:00+09:00",
+      notice: "Lifestyle check-in only",
+      questions: [
+        {
+          field: "breakfast_status",
+          summary_label: "아침 식사 여부",
+          text: "아침 드셨어요?",
+          input_type: "select",
+          options: ["hearty", "skipped"],
+          option_labels: {
+            hearty: "아침 먹었어요",
+            skipped: "아침 못 먹었어요"
+          }
+        }
+      ]
+    });
+
+    expect(rendered).toContain("선택: 1. 아침 먹었어요 / 2. 아침 못 먹었어요");
     expect(rendered).not.toContain("선택지 1");
     expect(rendered).not.toContain("hearty");
     expect(rendered).not.toContain("skipped");
@@ -138,7 +168,7 @@ describe("formatCard", () => {
     });
 
     expect(rendered).toContain("선택: 1. 걷기 / 2. 달리기 / 3. 자전거 / 4. 수영 / 5. 헬스장 / 6. 홈트 / 7. 기타");
-    expect(rendered).toContain("선택: 1. 충분 / 2. 조금 / 3. 없음");
+    expect(rendered).toContain("선택: 1. 충분히 먹었어요 / 2. 조금 먹었어요 / 3. 없음");
     expect(rendered).not.toContain("선택지");
     expect(rendered).not.toContain("home_workout");
   });
