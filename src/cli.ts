@@ -446,7 +446,23 @@ function registerMcp(
   }
 
   ensureToolAvailable(client);
-  const existing = runCommand(get.command, get.args);
+  let existing = runCommand(get.command, get.args);
+  if (client === "claude" && options.scope === "user" && existing.ok && /Scope:\s*Local config/iu.test(existing.output)) {
+    const localRemove = removeCommandForClient("claude", "local");
+    if (options.dryRun) {
+      console.log(`[dry-run] Would remove shadowing local Claude MCP entry: ${formatShellCommand(localRemove.command, localRemove.args)}`);
+    } else {
+      console.log(`${client} MCP server '${MCP_NAME}' has a local entry that shadows user setup. Removing the local entry.`);
+      const removedLocal = runCommand(localRemove.command, localRemove.args);
+      if (!removedLocal.ok) {
+        throw new DanaaApiError(`Failed to remove shadowing local ${client} MCP server.`, 1, {
+          error_code: "MCP_LOCAL_REMOVE_FAILED",
+          output: redact(removedLocal.output)
+        });
+      }
+      existing = runCommand(get.command, get.args);
+    }
+  }
   if (existing.ok && !options.force) {
     const normalizedOutput = existing.output.replace(/\\/g, "/");
     const normalizedRunnerEntry = runnerEntry.replace(/\\/g, "/");
