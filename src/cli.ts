@@ -655,7 +655,6 @@ One-line setup:
 Environment:
   DANAA_API_BASE=${getApiBase()}
   DANAA_HEALTH_TOKEN=<developer override>
-  DANAA_HEALTH_CARDS_ALLOW_EARLY=1  # test-only first-card bypass
 `);
 }
 
