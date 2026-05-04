@@ -34,6 +34,8 @@ npx -y github:LAP-TIME2/danaa-health-cards setup codex
 npx -y github:LAP-TIME2/danaa-health-cards setup all
 ```
 
+`setup all`은 Claude Code와 Codex CLI가 둘 다 설치되어 있어야 합니다. 하나만 쓰는 사용자는 `setup claude` 또는 `setup codex`처럼 해당 도구 명령만 실행하면 됩니다.
+
 이 명령은 아래 작업을 한 번에 합니다.
 
 - OS keyring(운영체제 안전 저장소)에 유효한 토큰이 있으면 그대로 재사용합니다.
@@ -57,6 +59,23 @@ npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only
 ```powershell
 npx -y github:LAP-TIME2/danaa-health-cards setup claude --dry-run
 npx -y github:LAP-TIME2/danaa-health-cards setup codex --dry-run
+```
+
+## 로그인 중 막혔을 때
+
+`setup` 명령은 DANAA 승인 페이지를 자동으로 열려고 시도합니다. 다만 VS Code, Claude Code, Windows Terminal, 브라우저 프로필, 원격 제어 상태에 따라 터미널의 링크 열기 방식이 달라질 수 있어서, CLI는 항상 복사 가능한 URL도 같이 보여줍니다.
+
+- 브라우저가 안 열리면 터미널에 나온 URL을 복사해서 DANAA에 로그인된 브라우저에 붙여넣으세요.
+- 엉뚱한 브라우저 프로필이 열리면 같은 URL을 올바른 프로필에 붙여넣으세요.
+- 코드가 만료되면 같은 `setup` 명령을 다시 실행해서 새 코드를 받으면 됩니다.
+- 점(`.`)이 계속 찍히는 것은 터미널이 브라우저 승인을 기다리는 중이라는 뜻입니다.
+- 토큰 저장에 실패하면 Windows Credential Manager, macOS Keychain, Linux keyring 같은 OS 안전 저장소를 사용할 수 있는지 확인한 뒤 `danaa-health-cards doctor`를 실행하세요.
+- 원격 서버나 브라우저가 없는 터미널에서는 `--no-open`을 붙이고 URL을 직접 복사하면 됩니다.
+
+예시:
+
+```powershell
+npx -y github:LAP-TIME2/danaa-health-cards setup claude --no-open
 ```
 
 ## 직접 실행 명령

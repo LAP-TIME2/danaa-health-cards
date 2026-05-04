@@ -34,13 +34,15 @@ Both:
 npx -y github:LAP-TIME2/danaa-health-cards setup all
 ```
 
+`setup all` requires both Claude Code and Codex CLI to be installed. If you only use one tool, run the matching single-tool command.
+
 These commands:
 
 - reuse an existing valid OS keyring token, or start DANAA device login if needed
 - save the issued token to the OS keyring
 - register the MCP server in Claude Code and/or Codex CLI
 - register a Stop hook so a DANAA card can appear after a normal AI answer finishes
-- install a small skill guide so short replies like `1`, `skip`, `30분 뒤`, or `오늘 그만` are handled correctly
+- install a small skill guide so short replies like `1`, `skip`, `30 minutes later`, or `stop for today` are handled correctly
 - do not print the token
 - do not store the token in Claude/Codex config
 - do not ask users to choose localhost or production
@@ -57,6 +59,23 @@ Dry-run:
 ```powershell
 npx -y github:LAP-TIME2/danaa-health-cards setup claude --dry-run
 npx -y github:LAP-TIME2/danaa-health-cards setup codex --dry-run
+```
+
+## During Login
+
+The setup command now tries to open the DANAA approval page automatically. Terminal link behavior still depends on VS Code, Claude Code, Windows Terminal, browser profile, and remote-control settings, so the CLI always prints the URL as a fallback too.
+
+- If the browser does not open, copy the printed URL into the browser where you are logged into DANAA.
+- If the wrong browser profile opens, copy the same URL into the correct browser profile.
+- If the code expired, run the same `setup` command again and use the new code.
+- If the terminal keeps printing dots, it is waiting for approval in the browser.
+- If token saving fails, unlock or enable your OS credential store, then run `danaa-health-cards doctor`.
+- If you are on a remote/headless terminal, use `--no-open` and copy the URL manually.
+
+Example:
+
+```powershell
+npx -y github:LAP-TIME2/danaa-health-cards setup claude --no-open
 ```
 
 ## Manual Commands
