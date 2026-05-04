@@ -636,6 +636,15 @@ function installAutomation(
   installSkill(client, options);
 }
 
+export function codexPermissionGuide(): string {
+  return [
+    "Codex first-use permission:",
+    "  Codex may ask whether to allow DANAA MCP tools such as `danaa_checkin_next`.",
+    "  Choose `3. Always allow` once for each DANAA tool you trust.",
+    "  This is Codex's own safety prompt, so DANAA setup does not bypass it automatically."
+  ].join("\n");
+}
+
 async function setup(
   target: string,
   options: Pick<CliOptions, "dryRun" | "force" | "manualOnly" | "noOpen" | "scope">
@@ -683,6 +692,10 @@ async function setup(
       ? "Setup complete in manual MCP mode."
       : "Setup complete. Restart Claude Code/Codex if the new MCP server or hook is not visible yet."
   );
+  if (targets.includes("codex")) {
+    console.log("");
+    console.log(codexPermissionGuide());
+  }
 }
 
 function answerNumbersFromCard(card: DanaaNextCheckin, answerNumbers: number[]): Record<string, string | number | boolean> {
@@ -803,6 +816,8 @@ Automation:
   latestLeaseId=${state.latestLeaseId ?? "(none)"}
   snoozeUntil=${state.snoozeUntil ?? "(none)"}
   dndUntil=${state.dndUntil ?? "(none)"}
+
+${codexPermissionGuide()}
 
 If setup fails at keyring, unlock your OS credential store and rerun setup.
 `);

@@ -78,6 +78,28 @@ Example:
 npx -y github:LAP-TIME2/danaa-health-cards setup claude --no-open
 ```
 
+## First Codex Permission Prompt
+
+Codex may show a safety prompt the first time a DANAA MCP tool runs. For example, `danaa_checkin_next` asks the DANAA server for the next check-in card, so Codex may ask for permission.
+
+Recommended choice:
+
+```text
+3. Always allow
+```
+
+This choice must be made by the user. DANAA setup does not silently bypass Codex's permission model. After you choose `Always allow` once for a DANAA tool, repeated prompts for that tool should be reduced.
+
+## Testing After Today's Cards Are Complete
+
+If your DANAA account already answered every card for today, `no_pending` or “all cards are complete” is the correct server result. You can still test Codex permission prompts, MCP connection, and token storage, but you cannot test another real answer save on the same account today.
+
+For a full save test, use one of these safe options:
+
+- sign in with a fresh DANAA test account and run the check-in flow
+- wait until the next day when new cards open
+- do not delete production health records just to retest; that touches real user data
+
 ## Manual Commands
 
 ```powershell

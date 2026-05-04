@@ -33,6 +33,18 @@ If login gets confusing:
 npx -y github:LAP-TIME2/danaa-health-cards setup codex --no-open
 ```
 
+First Codex permission prompt:
+
+- Codex may ask whether to allow `danaa_checkin_next` or an answer tool.
+- Choose `3. Always allow` if you trust the DANAA plugin and want the check-in flow to continue smoothly.
+- DANAA setup cannot and should not silently set this for you.
+
+If today's cards are already complete:
+
+- `no_pending` means the server has no remaining card for that account today.
+- You can still test MCP permission and connection.
+- Use a fresh DANAA test account or wait until tomorrow to test another real answer save.
+
 Local backend development only:
 
 ```bash
