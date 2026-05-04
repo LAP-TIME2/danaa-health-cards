@@ -210,17 +210,17 @@ function formatShellCommand(command: string, args: string[]): string {
   return [command, ...args].map(quoteCmdArg).join(" ");
 }
 
+function resolveExecutable(command: string): string {
+  if (process.platform !== "win32") return command;
+  if (path.extname(command)) return command;
+  return `${command}.cmd`;
+}
+
 function runCommand(command: string, args: string[]): { ok: boolean; output: string } {
-  const spawned =
-    process.platform === "win32"
-      ? spawnSync("cmd.exe", ["/d", "/s", "/c", formatShellCommand(command, args)], {
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "pipe"]
-        })
-      : spawnSync(command, args, {
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "pipe"]
-        });
+  const spawned = spawnSync(resolveExecutable(command), args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  });
   const output = `${spawned.stdout ?? ""}${spawned.stderr ?? ""}`;
   return { ok: spawned.status === 0, output };
 }
