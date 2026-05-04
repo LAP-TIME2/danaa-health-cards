@@ -10,6 +10,7 @@ import {
   DanaaApiError,
   danaaFetch,
   getApiBase,
+  getSettings,
   nextCheckin,
   revokeExternalToken,
   setApiBase,
@@ -183,6 +184,15 @@ async function login(): Promise<void> {
   throw new DanaaApiError("Device login expired. Please run setup or login again.", 408, {
     error_code: "DEVICE_LOGIN_EXPIRED"
   });
+}
+
+async function hasReusableToken(): Promise<boolean> {
+  try {
+    await getSettings();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function checkin(): Promise<void> {
@@ -472,9 +482,14 @@ async function setup(target: string, options: Pick<CliOptions, "dryRun" | "force
 
   if (options.dryRun) {
     console.log(`[dry-run] Would use DANAA API: ${getApiBase()}`);
-    console.log("[dry-run] Would start device login and save token to OS keyring.");
+    console.log("[dry-run] Would reuse a valid OS keyring token, or start device login if no valid token exists.");
   } else {
-    await login();
+    if (await hasReusableToken()) {
+      console.log("Existing DANAA token is valid. Skipping device login.");
+      ensureInstalledAt();
+    } else {
+      await login();
+    }
   }
 
   const runnerEntry = ensureLocalRunner(options);

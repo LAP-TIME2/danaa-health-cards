@@ -36,7 +36,7 @@ npx -y github:LAP-TIME2/danaa-health-cards setup all
 
 These commands:
 
-- start DANAA device login
+- reuse an existing valid OS keyring token, or start DANAA device login if needed
 - save the issued token to the OS keyring
 - register the MCP server in Claude Code and/or Codex CLI
 - register a Stop hook so a DANAA card can appear after a normal AI answer finishes

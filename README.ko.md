@@ -36,8 +36,8 @@ npx -y github:LAP-TIME2/danaa-health-cards setup all
 
 이 명령은 아래 작업을 한 번에 합니다.
 
-- DANAA device login을 시작합니다.
-- 발급된 토큰을 OS keyring(운영체제 안전 저장소)에 저장합니다.
+- OS keyring(운영체제 안전 저장소)에 유효한 토큰이 있으면 그대로 재사용합니다.
+- 유효한 토큰이 없으면 DANAA device login을 시작하고 발급된 토큰을 OS keyring에 저장합니다.
 - Claude Code 또는 Codex CLI에 MCP 서버를 등록합니다.
 - 일반 답변이 끝난 뒤 카드를 붙일 수 있도록 Stop hook(답변 종료 시점 실행 장치)을 등록합니다.
 - `1`, `skip`, `30분 뒤`, `오늘 그만` 같은 짧은 답을 이해하도록 skill 안내를 설치합니다.
