@@ -90,7 +90,37 @@ Recommended choice:
 3. Always allow
 ```
 
-This choice must be made by the user. DANAA setup does not silently bypass Codex's permission model. After you choose `Always allow` once for a DANAA tool, repeated prompts for that tool should be reduced. If Windows Codex keeps failing the Stop hook, run `npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only` and use `질문카드 보여줘` for manual check-ins.
+This choice must be made by the user. DANAA setup does not silently bypass Codex's permission model.
+
+In plain terms, `Always allow` does not open every Codex permission. It only remembers that the specific `danaa-health-cards` tool shown in the prompt may run again. Codex may ask once for `danaa_checkin_next` to fetch a card and once for `danaa_checkin_answer_latest_numbers` to save the numbers the user selected.
+
+When the prompt appears:
+
+- `1. Allow`: allow this one call only. Codex may ask again later.
+- `2. Allow for this session`: allow the tool for the current Codex session.
+- `3. Always allow`: remember the decision for future calls to the same DANAA tool. This is recommended for normal use.
+- `4. Cancel`: do not run the tool.
+
+Avoid broad `bypass permissions` style settings for this integration. DANAA is connected to an account and health records, so approving only the visible DANAA tools with `Always allow` is safer than disabling permission prompts globally.
+
+If Windows Codex keeps failing the Stop hook, run `npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only` and use `질문카드 보여줘` for manual check-ins.
+
+## Duplicate Cards In Codex
+
+Codex may show MCP tool results directly in the transcript. If you see this block, the gray tool result is already the card:
+
+```text
+Called danaa-health-cards.danaa_checkin_next({})
+  └ DANAA health check-in card...
+```
+
+Older skill wording could make Codex copy that same card again in the assistant message. The current Codex skill treats the visible tool result as the card and only adds a short number-answer hint afterward.
+
+If Codex still repeats the same card body, reinstall the latest skill:
+
+```powershell
+npx -y github:LAP-TIME2/danaa-health-cards setup codex --force
+```
 
 ## Testing After Today's Cards Are Complete
 

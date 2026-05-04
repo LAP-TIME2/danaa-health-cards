@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DanaaApiError } from "../src/api.js";
-import { browserOpenCommand, codexPermissionGuide, loginInstructionLines, manualOpenInstruction, runCli, safeLoginUrl } from "../src/cli.js";
+import { browserOpenCommand, codexPermissionGuide, loginInstructionLines, manualOpenInstruction, runCli, safeLoginUrl, skillTextForClient } from "../src/cli.js";
 
 describe("login browser helpers", () => {
   afterEach(() => {
@@ -67,5 +67,15 @@ describe("login browser helpers", () => {
     expect(output).toContain("Would remove DANAA Codex Stop hook");
     expect(output).not.toContain("Would add Codex Stop hook");
     expect(output).toContain("Setup complete in manual MCP mode");
+  });
+
+  it("keeps Codex skill from repeating visible MCP card results", () => {
+    const codexSkill = skillTextForClient("codex");
+    const claudeSkill = skillTextForClient("claude");
+
+    expect(codexSkill).toContain("Treat that visible tool result as the card");
+    expect(codexSkill).toContain("do not copy, rewrite, or repeat the card body");
+    expect(codexSkill).not.toContain("show the returned text once");
+    expect(claudeSkill).toContain("show the returned text once");
   });
 });

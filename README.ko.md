@@ -90,7 +90,37 @@ Codex는 MCP 도구를 처음 실행할 때 보안 확인창을 띄울 수 있�
 3. Always allow
 ```
 
-이 선택은 사용자가 직접 해야 합니다. DANAA 플러그인이 몰래 자동 승인하지 않습니다. 대신 한 번 `Always allow`를 선택하면 같은 DANAA 도구 호출에서는 반복 확인이 줄어듭니다. Windows Codex에서 Stop hook 오류가 계속 나면 `npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only`를 실행하고 `질문카드 보여줘`로 수동 체크인을 쓰면 됩니다.
+이 선택은 사용자가 직접 해야 합니다. DANAA 플러그인이 몰래 자동 승인하지 않습니다.
+
+쉽게 말하면 `Always allow`는 “Codex 전체 권한을 다 열기”가 아닙니다. 지금 화면에 나온 `danaa-health-cards`의 특정 도구를 앞으로도 실행해도 된다고 기억시키는 선택입니다. 그래서 `danaa_checkin_next`처럼 질문카드를 가져오는 도구, `danaa_checkin_answer_latest_numbers`처럼 사용자가 고른 번호를 저장하는 도구는 처음에 각각 한 번씩 물어볼 수 있습니다.
+
+권한창이 떴을 때:
+
+- `1. Allow`: 이번 한 번만 허용합니다. 다음에 또 물어볼 수 있습니다.
+- `2. Allow for this session`: 현재 Codex 세션 동안만 허용합니다.
+- `3. Always allow`: 앞으로 같은 DANAA 도구 호출은 반복 확인을 줄입니다. 일반 사용자는 이 선택을 권장합니다.
+- `4. Cancel`: 실행하지 않습니다.
+
+`bypass permissions`처럼 전체 권한 확인을 건너뛰는 설정은 권장하지 않습니다. DANAA는 계정과 건강 기록에 연결되므로, 전체 우회보다 Codex가 물어보는 DANAA 도구에만 `3. Always allow`를 선택하는 방식이 더 안전합니다.
+
+Windows Codex에서 Stop hook 오류가 계속 나면 `npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only`를 실행하고 `질문카드 보여줘`로 수동 체크인을 쓰면 됩니다.
+
+## Codex에서 카드가 두 번 보일 때
+
+Codex는 MCP 도구 결과를 대화 화면에 직접 보여줄 수 있습니다. 그래서 아래처럼 보이면 첫 번째 회색 블록이 이미 질문카드입니다.
+
+```text
+Called danaa-health-cards.danaa_checkin_next({})
+  └ DANAA 건강 체크인 카드입니다...
+```
+
+예전 skill 문구는 Codex가 이 도구 결과를 다시 한 번 답변으로 복사하게 만들 수 있었습니다. 최신 버전은 Codex가 도구 결과를 카드로 보고, 같은 카드 본문을 다시 반복하지 않도록 안내합니다.
+
+중복 출력이 계속되면 최신 skill을 다시 설치하세요.
+
+```powershell
+npx -y github:LAP-TIME2/danaa-health-cards setup codex --force
+```
 
 ## 이미 오늘 질문카드를 다 답한 계정으로 테스트할 때
 
