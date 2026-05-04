@@ -75,3 +75,7 @@ export function formatAutoHookInstruction(card: DanaaNextCheckin): string {
   const bundleName = card.bundle_name ? ` (${card.bundle_name})` : "";
   return `DANAA_CHECKIN_READY${bundleName}: 이전 답변은 수정하지 말고 MCP 도구 danaa_checkin_show_latest를 호출해 반환된 카드만 한 번 보여주세요. 실패하면 아무것도 덧붙이지 마세요.`;
 }
+
+export function formatPostAnswerHint(): string {
+  return '이어서 입력하고 싶을 때 "질문카드 보여줘"라고 말하면 현재 남은 카드가 있는지 확인해드릴게요.';
+}

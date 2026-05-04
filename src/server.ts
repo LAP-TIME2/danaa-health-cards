@@ -14,14 +14,12 @@ import {
   updateSettings,
   type DanaaNextCheckin
 } from "./api.js";
-import { formatCard } from "./format.js";
+import { formatCard, formatPostAnswerHint } from "./format.js";
 import { clearLatestCard, readState, rememberLatestCard, updateState } from "./local-state.js";
 import { redact } from "./security/redact.js";
 
 const leaseCache = new Map<string, DanaaNextCheckin>();
 const AFTER_ANSWER_AUTO_SUPPRESS_MINUTES = 10;
-const REMAINING_CARD_HINT =
-  '아직 오늘 입력할 건강 카드가 남아 있을 수 있어요. 필요할 때 "질문카드 보여줘"라고 말하면 다음 카드를 이어서 보여드릴게요.';
 
 function rememberCard(card: DanaaNextCheckin): void {
   if (!card.lease_id) return;
@@ -61,7 +59,7 @@ function suppressAutoAfterAnswer(): void {
 
 function resultWithCompletionHint(result: unknown): string {
   suppressAutoAfterAnswer();
-  return `${typeof result === "string" ? result : JSON.stringify(result, null, 2)}\n\n${REMAINING_CARD_HINT}`;
+  return `${typeof result === "string" ? result : JSON.stringify(result, null, 2)}\n\n${formatPostAnswerHint()}`;
 }
 
 function text(content: unknown) {

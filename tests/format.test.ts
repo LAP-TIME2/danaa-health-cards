@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatAutoCardPrompt, formatAutoHookInstruction, formatCard } from "../src/format.js";
+import { formatAutoCardPrompt, formatAutoHookInstruction, formatCard, formatPostAnswerHint } from "../src/format.js";
 
 const sampleCard = {
   has_question: true,
@@ -116,5 +116,14 @@ describe("formatCard", () => {
     expect(rendered).toContain("4. 스트레스");
     expect(rendered).toContain("5. 매우 스트레스");
     expect(rendered).not.toContain("very_stressed");
+  });
+
+  it("does not imply that more cards definitely remain after saving", () => {
+    const rendered = formatPostAnswerHint();
+
+    expect(rendered).toContain("현재 남은 카드가 있는지 확인");
+    expect(rendered).not.toContain("더 남아");
+    expect(rendered).not.toContain("남아 있을 수");
+    expect(rendered).not.toContain("다음 카드를 이어서");
   });
 });
