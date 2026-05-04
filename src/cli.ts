@@ -202,7 +202,7 @@ async function checkin(): Promise<void> {
 }
 
 function quoteCmdArg(value: string): string {
-  if (!/[\\s"]/u.test(value)) return value;
+  if (!/[\s"]/u.test(value)) return value;
   return `"${value.replace(/"/g, '\\"')}"`;
 }
 
