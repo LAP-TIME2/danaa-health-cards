@@ -19,6 +19,9 @@ import { clearLatestCard, readState, rememberLatestCard, updateState } from "./l
 import { redact } from "./security/redact.js";
 
 const leaseCache = new Map<string, DanaaNextCheckin>();
+const AFTER_ANSWER_AUTO_SUPPRESS_MINUTES = 10;
+const REMAINING_CARD_HINT =
+  '아직 오늘 입력할 건강 카드가 남아 있을 수 있어요. 필요할 때 "질문카드 보여줘"라고 말하면 다음 카드를 이어서 보여드릴게요.';
 
 function rememberCard(card: DanaaNextCheckin): void {
   if (!card.lease_id) return;
@@ -49,24 +52,16 @@ function answersFromNumbers(card: DanaaNextCheckin, answerNumbers: number[]): Re
   return answers;
 }
 
-function completionHint(nextCard: DanaaNextCheckin): string {
-  if (nextCard.has_question) {
-    return '아직 오늘 입력할 건강 카드가 남아 있어요. 필요할 때 "질문카드 보여줘"라고 말하면 다음 카드를 이어서 보여드릴게요.';
-  }
-  return "오늘 필요한 건강 체크인은 모두 완료됐어요.";
+function suppressAutoAfterAnswer(): void {
+  const autoSuppressedUntil = new Date(
+    Date.now() + AFTER_ANSWER_AUTO_SUPPRESS_MINUTES * 60 * 1000
+  ).toISOString();
+  updateState((state) => ({ ...state, autoSuppressedUntil }));
 }
 
-async function answerCompletionHint(): Promise<string> {
-  try {
-    const nextCard = await nextCheckin();
-    return completionHint(nextCard);
-  } catch {
-    return '필요할 때 "질문카드 보여줘"라고 말하면 다음 건강 체크인을 확인할 수 있어요.';
-  }
-}
-
-async function resultWithCompletionHint(result: unknown): Promise<string> {
-  return `${typeof result === "string" ? result : JSON.stringify(result, null, 2)}\n\n${await answerCompletionHint()}`;
+function resultWithCompletionHint(result: unknown): string {
+  suppressAutoAfterAnswer();
+  return `${typeof result === "string" ? result : JSON.stringify(result, null, 2)}\n\n${REMAINING_CARD_HINT}`;
 }
 
 function text(content: unknown) {
@@ -117,7 +112,7 @@ server.tool(
       const result = await answerCheckin(leaseId, answers, idempotencyKey);
       leaseCache.delete(leaseId);
       clearLatestCard(leaseId);
-      return text(await resultWithCompletionHint(result));
+      return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -137,7 +132,7 @@ server.tool(
       const result = await answerCheckin(leaseId, answers, idempotencyKey);
       leaseCache.delete(leaseId);
       clearLatestCard(leaseId);
-      return text(await resultWithCompletionHint(result));
+      return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -156,7 +151,7 @@ server.tool(
       const result = await skipCheckin(leaseId, idempotencyKey);
       leaseCache.delete(leaseId);
       clearLatestCard(leaseId);
-      return text(await resultWithCompletionHint(result));
+      return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -183,7 +178,7 @@ server.tool(
       );
       leaseCache.delete(latest.leaseId);
       clearLatestCard(latest.leaseId);
-      return text(await resultWithCompletionHint(result));
+      return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -205,7 +200,7 @@ server.tool(
       const result = await skipCheckin(latest.leaseId, idempotencyKey);
       leaseCache.delete(latest.leaseId);
       clearLatestCard(latest.leaseId);
-      return text(await resultWithCompletionHint(result));
+      return text(resultWithCompletionHint(result));
     } catch (error) {
       return errorText(error);
     }
@@ -235,6 +230,7 @@ server.tool("danaa_checkin_status", "Read local DANAA Health Cards automation st
     return text({
       hasPendingCard: Boolean(state.latestLeaseId),
       latestShownAt: state.latestShownAt ?? null,
+      autoSuppressedUntil: state.autoSuppressedUntil ?? null,
       snoozeUntil: state.snoozeUntil ?? null,
       dndUntil: state.dndUntil ?? null
     });

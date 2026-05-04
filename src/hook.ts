@@ -33,7 +33,7 @@ function shouldSkipByLocalState(input: StopHookInput): boolean {
   if (input.last_assistant_message?.includes("DANAA_CARD_PENDING")) return true;
 
   const state = ensureInstalledAt();
-  if (isFuture(state.snoozeUntil) || isFuture(state.dndUntil)) return true;
+  if (isFuture(state.snoozeUntil) || isFuture(state.dndUntil) || isFuture(state.autoSuppressedUntil)) return true;
   if (input.turn_id && state.lastHookTurnId === input.turn_id) return true;
   if (state.latestLeaseId && isFuture(state.latestCard?.expires_at ?? undefined)) return true;
 
