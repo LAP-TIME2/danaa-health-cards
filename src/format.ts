@@ -1,8 +1,34 @@
 import type { DanaaNextCheckin, DanaaQuestion } from "./api.js";
 
+const OPTION_LABELS: Record<string, string> = {
+  excellent: "매우 좋음",
+  very_good: "매우 좋음",
+  good: "좋음",
+  normal: "보통",
+  average: "보통",
+  fair: "보통",
+  bad: "나쁨",
+  poor: "나쁨",
+  very_bad: "매우 나쁨",
+  balanced: "고르게 먹었어요",
+  carb_heavy: "밥·빵·면 위주였어요",
+  protein_veg_heavy: "고기·채소 위주였어요",
+  none: "없음",
+  no: "아니요",
+  one: "한 번",
+  two_plus: "두 번 이상",
+  yes: "예",
+  less_than_5h: "5시간 미만",
+  "5_6h": "5~6시간",
+  "6_7h": "6~7시간",
+  "7_8h": "7~8시간",
+  over_8h: "8시간 이상"
+};
+
 function formatOption(option: string | number | boolean): string {
   if (option === true) return "예";
   if (option === false) return "아니요";
+  if (typeof option === "string" && OPTION_LABELS[option]) return OPTION_LABELS[option];
   return String(option);
 }
 
