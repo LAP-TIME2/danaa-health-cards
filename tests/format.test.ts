@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatAutoCardPrompt, formatCard } from "../src/format.js";
+import { formatAutoCardPrompt, formatAutoHookInstruction, formatCard } from "../src/format.js";
 
 const sampleCard = {
   has_question: true,
@@ -81,5 +81,40 @@ describe("formatCard", () => {
     expect(rendered).not.toContain("DANAA_CARD_PENDING");
     expect(rendered).not.toContain("danaa_checkin");
     expect(rendered).not.toContain("lease_id");
+  });
+
+  it("keeps the Claude Stop hook reason short and avoids duplicating the card body", () => {
+    const rendered = formatAutoHookInstruction(sampleCard);
+
+    expect(rendered).toContain("DANAA_CHECKIN_READY");
+    expect(rendered).toContain("danaa_checkin_show_latest");
+    expect(rendered).not.toContain("Q1.");
+    expect(rendered).not.toContain("How was your sleep?");
+    expect(rendered).not.toContain("1. 좋음");
+  });
+
+  it("localizes stress option codes", () => {
+    const rendered = formatCard({
+      has_question: true,
+      lease_id: "lease-3",
+      bundle_key: "bundle_6",
+      bundle_name: "정서",
+      log_date: "2026-05-04",
+      expires_at: "2026-05-04T10:00:00+09:00",
+      notice: "Lifestyle check-in only",
+      questions: [
+        {
+          field: "mood",
+          summary_label: "기분 상태",
+          text: "요즘 기분은 어떠신가요?",
+          input_type: "select",
+          options: ["excellent", "good", "normal", "stressed", "very_stressed"]
+        }
+      ]
+    });
+
+    expect(rendered).toContain("4. 스트레스");
+    expect(rendered).toContain("5. 매우 스트레스");
+    expect(rendered).not.toContain("very_stressed");
   });
 });

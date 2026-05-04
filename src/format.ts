@@ -10,6 +10,8 @@ const OPTION_LABELS: Record<string, string> = {
   bad: "나쁨",
   poor: "나쁨",
   very_bad: "매우 나쁨",
+  stressed: "스트레스",
+  very_stressed: "매우 스트레스",
   balanced: "고르게 먹었어요",
   carb_heavy: "밥·빵·면 위주였어요",
   protein_veg_heavy: "고기·채소 위주였어요",
@@ -67,4 +69,9 @@ export function formatCard(card: DanaaNextCheckin): string {
 
 export function formatAutoCardPrompt(card: DanaaNextCheckin): string {
   return formatCard(card);
+}
+
+export function formatAutoHookInstruction(card: DanaaNextCheckin): string {
+  const bundleName = card.bundle_name ? ` (${card.bundle_name})` : "";
+  return `DANAA_CHECKIN_READY${bundleName}: 이전 답변은 수정하지 말고 MCP 도구 danaa_checkin_show_latest를 호출해 반환된 카드만 한 번 보여주세요. 실패하면 아무것도 덧붙이지 마세요.`;
 }

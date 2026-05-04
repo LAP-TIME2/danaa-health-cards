@@ -65,6 +65,8 @@ description: Use when the user asks for a DANAA health check-in card, replies wi
 
 # DANAA Check-in
 
+- If a Stop hook says a DANAA card is ready, call \`danaa_checkin_show_latest\` and show only that returned card once.
+- If the user asks for a health check-in card, call \`danaa_checkin_next\`.
 - If the user answers with numbers such as "1", "2 1", or "1,2", call \`danaa_checkin_answer_latest_numbers\` with the numbers in order.
 - If the user says skip, 스킵, 건너뛰기, call \`danaa_checkin_skip_latest\`.
 - If the user says 30분 뒤, 1시간 뒤, 오늘 그만, call \`danaa_checkin_snooze\`.
