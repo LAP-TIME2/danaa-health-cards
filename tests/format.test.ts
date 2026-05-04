@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formatAutoCardPrompt, formatAutoHookInstruction, formatCard, formatPostAnswerHint } from "../src/format.js";
+import {
+  formatAutomationStatus,
+  formatAutoCardPrompt,
+  formatAutoHookInstruction,
+  formatCard,
+  formatPostAnswerHint
+} from "../src/format.js";
 
 const sampleCard = {
   has_question: true,
@@ -125,5 +131,49 @@ describe("formatCard", () => {
     expect(rendered).not.toContain("더 남아");
     expect(rendered).not.toContain("남아 있을 수");
     expect(rendered).not.toContain("다음 카드를 이어서");
+  });
+
+  it("explains completed check-ins without asking the user to request another card", () => {
+    const rendered = formatCard({
+      has_question: false,
+      log_date: "2026-05-04",
+      questions: [],
+      notice: "오늘 체크인 완료",
+      blocked_reason: "no_pending",
+      next_available_at: null
+    });
+
+    expect(rendered).toContain("오늘 체크인 완료");
+    expect(rendered).toContain("지금 입력할 건강 카드는 모두 끝났어요");
+    expect(rendered).not.toContain("새 카드");
+    expect(rendered).not.toContain("질문카드 줘");
+    expect(rendered).not.toContain("더 남아");
+  });
+
+  it("distinguishes cooldown from completed check-ins", () => {
+    const rendered = formatCard({
+      has_question: false,
+      log_date: "2026-05-04",
+      questions: [],
+      notice: "cooldown",
+      blocked_reason: "cooldown",
+      next_available_at: "2026-05-04T14:42:00+09:00"
+    });
+
+    expect(rendered).toContain("지금 바로 입력할 DANAA 질문카드는 없어요");
+    expect(rendered).toContain("다음 확인 가능 시간");
+    expect(rendered).not.toContain("오늘 체크인 완료");
+  });
+
+  it("warns that local status is not the server remaining-card result", () => {
+    const rendered = formatAutomationStatus({
+      latestShownAt: "2026-05-04T14:31:00+09:00",
+      autoSuppressedUntil: "2026-05-04T14:42:00+09:00"
+    });
+
+    expect(rendered).toContain("로컬에 대기 중인 질문카드는 없어요");
+    expect(rendered).toContain("오늘 남은 카드가 있는지 확인하려면");
+    expect(rendered).toContain('"질문카드 보여줘"');
+    expect(rendered).not.toContain("새 카드를 바로");
   });
 });

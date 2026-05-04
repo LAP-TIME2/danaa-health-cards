@@ -1,4 +1,5 @@
 import type { DanaaNextCheckin, DanaaQuestion } from "./api.js";
+import type { LocalState } from "./local-state.js";
 
 const OPTION_LABELS: Record<string, string> = {
   excellent: "매우 좋음",
@@ -34,6 +35,19 @@ function formatOption(option: string | number | boolean): string {
   return String(option);
 }
 
+function formatDateTime(value?: string | null): string | null {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return value;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(new Date(timestamp));
+}
+
 export function formatQuestion(question: DanaaQuestion, index: number): string {
   const lines = [`Q${index + 1}. ${question.summary_label} - ${question.text}`];
   if (question.input_type === "number") {
@@ -50,7 +64,7 @@ export function formatQuestion(question: DanaaQuestion, index: number): string {
 
 export function formatCard(card: DanaaNextCheckin): string {
   if (!card.has_question) {
-    return `DANAA 체크인: ${card.notice}`;
+    return formatNoQuestionCard(card);
   }
 
   const title = `DANAA 건강 체크인 카드입니다${card.bundle_name ? ` (${card.bundle_name})` : ""}.`;
@@ -67,6 +81,48 @@ export function formatCard(card: DanaaNextCheckin): string {
   ].join("\n").trim();
 }
 
+export function formatNoQuestionCard(card: DanaaNextCheckin): string {
+  const nextAvailable = formatDateTime(card.next_available_at);
+  const datePrefix = card.log_date ? `${card.log_date} 기준으로 ` : "";
+
+  if (card.blocked_reason === "disabled") {
+    return "DANAA 건강 체크인이 꺼져 있어요. 다시 받고 싶으면 DANAA 설정에서 자동 체크인을 켜주세요.";
+  }
+
+  if (card.blocked_reason === "snoozed") {
+    return [
+      "지금은 DANAA 건강 체크인이 잠시 미뤄진 상태예요.",
+      nextAvailable ? `다음 확인 가능 시간: ${nextAvailable}` : null,
+      "생활습관 기록용 알림이며, 의료 조언은 아니에요."
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  if (card.blocked_reason === "cooldown") {
+    return [
+      "지금 바로 입력할 DANAA 질문카드는 없어요.",
+      nextAvailable ? `다음 확인 가능 시간: ${nextAvailable}` : null,
+      "작업 흐름이 끊기는 시점에 다시 확인해드릴게요."
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  if (card.blocked_reason === "daily_limit" || card.blocked_reason === "no_pending" || card.blocked_reason === null) {
+    return [
+      "✅ 오늘 체크인 완료!",
+      `${datePrefix}지금 입력할 건강 카드는 모두 끝났어요.`,
+      card.notice && !card.notice.includes("완료") ? card.notice : null,
+      "내일 다시 확인할 수 있어요. 수고하셨습니다."
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return card.notice ? `DANAA 체크인: ${card.notice}` : "지금 바로 입력할 DANAA 질문카드는 없어요.";
+}
+
 export function formatAutoCardPrompt(card: DanaaNextCheckin): string {
   return formatCard(card);
 }
@@ -78,4 +134,24 @@ export function formatAutoHookInstruction(card: DanaaNextCheckin): string {
 
 export function formatPostAnswerHint(): string {
   return '이어서 입력하고 싶을 때 "질문카드 보여줘"라고 말하면 현재 남은 카드가 있는지 확인해드릴게요.';
+}
+
+export function formatAutomationStatus(state: LocalState): string {
+  const latestShownAt = formatDateTime(state.latestShownAt);
+  const autoSuppressedUntil = formatDateTime(state.autoSuppressedUntil);
+  const snoozeUntil = formatDateTime(state.snoozeUntil);
+  const dndUntil = formatDateTime(state.dndUntil);
+
+  const lines = ["DANAA 로컬 자동 체크인 상태입니다."];
+  if (state.latestLeaseId) {
+    lines.push('대기 중인 질문카드가 있어요. 방금 준비된 카드를 보려면 "질문카드 보여줘"라고 말해주세요.');
+  } else {
+    lines.push("로컬에 대기 중인 질문카드는 없어요.");
+  }
+  if (latestShownAt) lines.push(`마지막 카드 표시: ${latestShownAt}`);
+  if (autoSuppressedUntil) lines.push(`답변 직후 자동 표시 억제: ${autoSuppressedUntil}까지`);
+  if (snoozeUntil) lines.push(`사용자 미루기: ${snoozeUntil}까지`);
+  if (dndUntil) lines.push(`오늘 그만/집중 모드: ${dndUntil}까지`);
+  lines.push('오늘 남은 카드가 있는지 확인하려면 로컬 상태가 아니라 "질문카드 보여줘"로 서버 확인을 해야 합니다.');
+  return lines.join("\n");
 }

@@ -71,6 +71,11 @@ export function ensureInstalledAt(): LocalState {
   });
 }
 
+export function suppressAutoForMinutes(minutes: number): LocalState {
+  const autoSuppressedUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+  return updateState((state) => ({ ...state, autoSuppressedUntil }));
+}
+
 export function isFuture(value?: string): boolean {
   return Boolean(value && Date.parse(value) > Date.now());
 }

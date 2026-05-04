@@ -4,7 +4,15 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { clearLatestCard, getStatePath, readState, rememberLatestCard, writeState } from "../src/local-state.js";
+import {
+  clearLatestCard,
+  getStatePath,
+  isFuture,
+  readState,
+  rememberLatestCard,
+  suppressAutoForMinutes,
+  writeState
+} from "../src/local-state.js";
 
 describe("local state", () => {
   let stateDir: string;
@@ -62,5 +70,11 @@ describe("local state", () => {
     clearLatestCard("lease-1");
     expect(readState().latestLeaseId).toBeUndefined();
     expect(readState().latestCard).toBeUndefined();
+  });
+
+  it("stores a temporary automatic prompt suppression timestamp", () => {
+    suppressAutoForMinutes(10);
+
+    expect(isFuture(readState().autoSuppressedUntil)).toBe(true);
   });
 });

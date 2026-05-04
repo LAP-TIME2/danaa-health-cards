@@ -26,6 +26,7 @@ import {
   getDataDir,
   readState,
   rememberLatestCard,
+  suppressAutoForMinutes,
   updateState
 } from "./local-state.js";
 import { redact } from "./security/redact.js";
@@ -58,6 +59,7 @@ type CliOptions = {
 
 const MCP_NAME = "danaa-health-cards";
 const GITHUB_PACKAGE = "github:LAP-TIME2/danaa-health-cards";
+const AFTER_ANSWER_AUTO_SUPPRESS_MINUTES = 10;
 const SKILL_TEXT = `---
 name: danaa-checkin
 description: Use when the user asks for a DANAA health check-in card, replies with only health check-in option numbers, or says skip, snooze, 30분 뒤, 오늘 그만, or dnd.
@@ -66,7 +68,8 @@ description: Use when the user asks for a DANAA health check-in card, replies wi
 # DANAA Check-in
 
 - If a Stop hook says a DANAA card is ready, call \`danaa_checkin_show_latest\` and show only that returned card once.
-- If the user asks for a health check-in card, call \`danaa_checkin_next\`.
+- If the user asks for a health check-in card, says "질문카드 보여줘", "질문카드 줘", "남아있어?", "아직 할게 남았어?", or asks whether any cards remain, call \`danaa_checkin_next\` and show the returned text exactly once.
+- Do not use \`danaa_checkin_status\` to answer whether cards remain. Status is only local automation state, not the server's remaining-card result.
 - If the user answers with numbers such as "1", "2 1", or "1,2", call \`danaa_checkin_answer_latest_numbers\` with the numbers in order.
 - If the user says skip, 스킵, 건너뛰기, call \`danaa_checkin_skip_latest\`.
 - If the user says 30분 뒤, 1시간 뒤, 오늘 그만, call \`danaa_checkin_snooze\`.
@@ -344,8 +347,20 @@ function registerMcp(
   ensureToolAvailable(client);
   const existing = runCommand(get.command, get.args);
   if (existing.ok && !options.force) {
-    console.log(`${client} MCP server '${MCP_NAME}' is already registered. Leaving it unchanged.`);
-    return;
+    const normalizedOutput = existing.output.replace(/\\/g, "/");
+    const normalizedRunnerEntry = runnerEntry.replace(/\\/g, "/");
+    if (normalizedOutput.includes(normalizedRunnerEntry)) {
+      console.log(`${client} MCP server '${MCP_NAME}' is already registered. Leaving it unchanged.`);
+      return;
+    }
+    console.log(`${client} MCP server '${MCP_NAME}' exists but points to an older runner. Updating it.`);
+    const removed = runCommand(remove.command, remove.args);
+    if (!removed.ok) {
+      throw new DanaaApiError(`Failed to remove stale ${client} MCP server.`, 1, {
+        error_code: "MCP_REMOVE_FAILED",
+        output: redact(removed.output)
+      });
+    }
   }
   if (existing.ok && options.force) {
     const removed = runCommand(remove.command, remove.args);
@@ -521,18 +536,25 @@ async function setup(target: string, options: Pick<CliOptions, "dryRun" | "force
 }
 
 function answerNumbersFromCard(card: DanaaNextCheckin, answerNumbers: number[]): Record<string, string | number | boolean> {
+  if (answerNumbers.length !== card.questions.length) {
+    throw new DanaaApiError(`답변 번호는 질문 개수(${card.questions.length}개)에 맞춰 입력해주세요.`, 400, {
+      error_code: "ANSWER_COUNT_MISMATCH"
+    });
+  }
   const answers: Record<string, string | number | boolean> = {};
   card.questions.forEach((question, index) => {
     const selectedNumber = answerNumbers[index];
-    if (selectedNumber === undefined) return;
     if (question.input_type === "number") {
       answers[question.field] = selectedNumber;
       return;
     }
     const option = question.options[selectedNumber - 1];
-    if (option !== undefined) {
-      answers[question.field] = option;
+    if (option === undefined) {
+      throw new DanaaApiError(`${index + 1}번 질문은 1~${question.options.length} 사이 번호로 답해주세요.`, 400, {
+        error_code: "ANSWER_OPTION_OUT_OF_RANGE"
+      });
     }
+    answers[question.field] = option;
   });
   return answers;
 }
@@ -555,6 +577,7 @@ async function answerLatest(rawNumbers: string[]): Promise<void> {
   }
   const result = await answerCheckin(state.latestLeaseId, answerNumbersFromCard(state.latestCard, numbers));
   clearLatestCard(state.latestLeaseId);
+  suppressAutoForMinutes(AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
   console.log(result.message);
 }
 
@@ -567,6 +590,7 @@ async function skipLatest(): Promise<void> {
   }
   const result = await skipCheckin(state.latestLeaseId);
   clearLatestCard(state.latestLeaseId);
+  suppressAutoForMinutes(AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
   console.log(result.message);
 }
 
