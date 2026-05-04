@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DanaaApiError } from "../src/api.js";
-import { browserOpenCommand, loginInstructionLines, manualOpenInstruction, safeLoginUrl } from "../src/cli.js";
+import { browserOpenCommand, codexPermissionGuide, loginInstructionLines, manualOpenInstruction, safeLoginUrl } from "../src/cli.js";
 
 describe("login browser helpers", () => {
   it("builds an OS browser command only for safe web URLs", () => {
@@ -42,5 +42,13 @@ describe("login browser helpers", () => {
     expect(lines.join("\n")).toContain("Copy this URL");
     expect(lines.join("\n")).toContain("ABCD-EFGH");
     expect(lines.join("\n")).toContain("Dots mean");
+  });
+
+  it("explains Codex first-use MCP permission without claiming automatic bypass", () => {
+    const guide = codexPermissionGuide();
+
+    expect(guide).toContain("3. Always allow");
+    expect(guide).toContain("does not bypass");
+    expect(guide).toContain("danaa_checkin_next");
   });
 });
