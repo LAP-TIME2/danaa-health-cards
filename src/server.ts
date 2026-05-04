@@ -10,13 +10,44 @@ import {
   getSettings,
   nextCheckin,
   skipCheckin,
+  snoozeCheckin,
   updateSettings,
   type DanaaNextCheckin
 } from "./api.js";
 import { formatCard } from "./format.js";
+import { clearLatestCard, readState, rememberLatestCard, updateState } from "./local-state.js";
 import { redact } from "./security/redact.js";
 
 const leaseCache = new Map<string, DanaaNextCheckin>();
+
+function rememberCard(card: DanaaNextCheckin): void {
+  if (!card.lease_id) return;
+  leaseCache.set(card.lease_id, card);
+  rememberLatestCard(card);
+}
+
+function latestCard(): { leaseId: string; card: DanaaNextCheckin } | null {
+  const state = readState();
+  if (!state.latestLeaseId || !state.latestCard) return null;
+  return { leaseId: state.latestLeaseId, card: state.latestCard };
+}
+
+function answersFromNumbers(card: DanaaNextCheckin, answerNumbers: number[]): Record<string, string | number | boolean> {
+  const answers: Record<string, string | number | boolean> = {};
+  card.questions.forEach((question, index) => {
+    const selectedNumber = answerNumbers[index];
+    if (selectedNumber === undefined) return;
+    if (question.input_type === "number") {
+      answers[question.field] = selectedNumber;
+      return;
+    }
+    const option = question.options[selectedNumber - 1];
+    if (option !== undefined) {
+      answers[question.field] = option;
+    }
+  });
+  return answers;
+}
 
 function text(content: unknown) {
   return {
@@ -41,9 +72,7 @@ const server = new McpServer({
 server.tool("danaa_checkin_next", "Get the next server-approved DANAA health check-in card.", {}, async () => {
   try {
     const card = await nextCheckin();
-    if (card.lease_id) {
-      leaseCache.set(card.lease_id, card);
-    }
+    rememberCard(card);
     return text(formatCard(card));
   } catch (error) {
     return errorText(error);
@@ -64,21 +93,10 @@ server.tool(
       if (!card) {
         return text("Lease cache is empty. Run danaa_checkin_next again, then answer.");
       }
-      const answers: Record<string, string | number | boolean> = {};
-      card.questions.forEach((question, index) => {
-        const selectedNumber = answerNumbers[index];
-        if (selectedNumber === undefined) return;
-        if (question.input_type === "number") {
-          answers[question.field] = selectedNumber;
-          return;
-        }
-        const option = question.options[selectedNumber - 1];
-        if (option !== undefined) {
-          answers[question.field] = option;
-        }
-      });
+      const answers = answersFromNumbers(card, answerNumbers);
       const result = await answerCheckin(leaseId, answers, idempotencyKey);
       leaseCache.delete(leaseId);
+      clearLatestCard(leaseId);
       return text(result);
     } catch (error) {
       return errorText(error);
@@ -98,6 +116,7 @@ server.tool(
     try {
       const result = await answerCheckin(leaseId, answers, idempotencyKey);
       leaseCache.delete(leaseId);
+      clearLatestCard(leaseId);
       return text(result);
     } catch (error) {
       return errorText(error);
@@ -116,12 +135,93 @@ server.tool(
     try {
       const result = await skipCheckin(leaseId, idempotencyKey);
       leaseCache.delete(leaseId);
+      clearLatestCard(leaseId);
       return text(result);
     } catch (error) {
       return errorText(error);
     }
   }
 );
+
+server.tool(
+  "danaa_checkin_answer_latest_numbers",
+  "Answer the latest pending DANAA health check-in with option numbers in question order.",
+  {
+    answerNumbers: z.array(z.number().int().positive()).min(1),
+    idempotencyKey: z.string().min(8).optional()
+  },
+  async ({ answerNumbers, idempotencyKey }) => {
+    try {
+      const latest = latestCard();
+      if (!latest) {
+        return text("No pending DANAA card was found. Ask for a new check-in first.");
+      }
+      const result = await answerCheckin(
+        latest.leaseId,
+        answersFromNumbers(latest.card, answerNumbers),
+        idempotencyKey
+      );
+      leaseCache.delete(latest.leaseId);
+      clearLatestCard(latest.leaseId);
+      return text(result);
+    } catch (error) {
+      return errorText(error);
+    }
+  }
+);
+
+server.tool(
+  "danaa_checkin_skip_latest",
+  "Skip the latest pending DANAA health check-in without saving health data.",
+  {
+    idempotencyKey: z.string().min(8).optional()
+  },
+  async ({ idempotencyKey }) => {
+    try {
+      const latest = latestCard();
+      if (!latest) {
+        return text("No pending DANAA card was found. Ask for a new check-in first.");
+      }
+      const result = await skipCheckin(latest.leaseId, idempotencyKey);
+      leaseCache.delete(latest.leaseId);
+      clearLatestCard(latest.leaseId);
+      return text(result);
+    } catch (error) {
+      return errorText(error);
+    }
+  }
+);
+
+server.tool(
+  "danaa_checkin_snooze",
+  "Snooze automatic DANAA health check-ins.",
+  {
+    durationMinutes: z.union([z.literal(30), z.literal(60), z.literal(120), z.literal(1440)])
+  },
+  async ({ durationMinutes }) => {
+    try {
+      const result = await snoozeCheckin(durationMinutes);
+      updateState((state) => ({ ...state, snoozeUntil: result.snoozed_until }));
+      return text(result);
+    } catch (error) {
+      return errorText(error);
+    }
+  }
+);
+
+server.tool("danaa_checkin_status", "Read local DANAA Health Cards automation state.", {}, async () => {
+  try {
+    const state = readState();
+    return text({
+      hasPendingCard: Boolean(state.latestLeaseId),
+      latestShownAt: state.latestShownAt ?? null,
+      snoozeUntil: state.snoozeUntil ?? null,
+      dndUntil: state.dndUntil ?? null
+    });
+  } catch (error) {
+    return errorText(error);
+  }
+});
 
 server.tool("danaa_settings_get", "Read DANAA Health Cards CLI settings.", {}, async () => {
   try {

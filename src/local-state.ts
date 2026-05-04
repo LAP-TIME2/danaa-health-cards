@@ -1,0 +1,75 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import type { DanaaNextCheckin } from "./api.js";
+
+export type LocalState = {
+  installedAt?: string;
+  latestCard?: DanaaNextCheckin;
+  latestLeaseId?: string;
+  latestShownAt?: string;
+  lastHookTurnId?: string;
+  snoozeUntil?: string;
+  dndUntil?: string;
+};
+
+export function getDataDir(): string {
+  if (process.env.DANAA_HEALTH_CARDS_HOME) return process.env.DANAA_HEALTH_CARDS_HOME;
+  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
+    return path.join(process.env.LOCALAPPDATA, "DANAA Health Cards");
+  }
+  return path.join(os.homedir(), ".danaa-health-cards");
+}
+
+export function getStatePath(): string {
+  return path.join(getDataDir(), "state.json");
+}
+
+export function readState(): LocalState {
+  try {
+    return JSON.parse(readFileSync(getStatePath(), "utf8")) as LocalState;
+  } catch {
+    return {};
+  }
+}
+
+export function writeState(nextState: LocalState): void {
+  mkdirSync(getDataDir(), { recursive: true });
+  writeFileSync(getStatePath(), `${JSON.stringify(nextState, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+}
+
+export function updateState(updater: (state: LocalState) => LocalState): LocalState {
+  const nextState = updater(readState());
+  writeState(nextState);
+  return nextState;
+}
+
+export function rememberLatestCard(card: DanaaNextCheckin): void {
+  if (!card.lease_id) return;
+  updateState((state) => ({
+    ...state,
+    latestCard: card,
+    latestLeaseId: card.lease_id ?? undefined,
+    latestShownAt: new Date().toISOString()
+  }));
+}
+
+export function clearLatestCard(leaseId?: string): void {
+  updateState((state) => {
+    if (leaseId && state.latestLeaseId && state.latestLeaseId !== leaseId) return state;
+    const { latestCard, latestLeaseId, ...rest } = state;
+    return rest;
+  });
+}
+
+export function ensureInstalledAt(): LocalState {
+  return updateState((state) => {
+    if (state.installedAt) return state;
+    return { ...state, installedAt: new Date().toISOString() };
+  });
+}
+
+export function isFuture(value?: string): boolean {
+  return Boolean(value && Date.parse(value) > Date.now());
+}

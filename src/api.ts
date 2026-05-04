@@ -22,6 +22,9 @@ export type DanaaNextCheckin = {
   expires_at?: string | null;
   questions: DanaaQuestion[];
   notice: string;
+  blocked_reason?: "disabled" | "cooldown" | "daily_limit" | "no_pending" | "snoozed" | "active_lease" | null;
+  next_available_at?: string | null;
+  lease_reused?: boolean;
 };
 
 export type DanaaAnswerResponse = {
@@ -36,6 +39,12 @@ export type DanaaSettings = {
   health_question_interval_minutes: 0 | 60 | 90 | 120;
   max_bundles_per_day: number;
   auto_question_enabled: boolean;
+};
+
+export type DanaaSnoozeResponse = {
+  status: "snoozed";
+  snoozed_until: string;
+  message: string;
 };
 
 type RequestOptions = {
@@ -149,7 +158,7 @@ export async function answerCheckin(
     method: "POST",
     token: getTokenFromEnv(),
     idempotencyKey,
-    body: { lease_id: leaseId, answers }
+    body: { lease_id: leaseId, answers, user_confirmed: true }
   });
 }
 
@@ -161,7 +170,22 @@ export async function skipCheckin(
     method: "POST",
     token: getTokenFromEnv(),
     idempotencyKey,
-    body: { lease_id: leaseId, skip: true }
+    body: { lease_id: leaseId, skip: true, user_confirmed: true }
+  });
+}
+
+export async function snoozeCheckin(durationMinutes: 30 | 60 | 120 | 1440): Promise<DanaaSnoozeResponse> {
+  return danaaFetch<DanaaSnoozeResponse>("/external/checkins/snooze", {
+    method: "POST",
+    token: getTokenFromEnv(),
+    body: { duration_minutes: durationMinutes }
+  });
+}
+
+export async function revokeExternalToken(): Promise<{ revoked: boolean; message: string }> {
+  return danaaFetch<{ revoked: boolean; message: string }>("/external-auth/revoke", {
+    method: "POST",
+    token: getTokenFromEnv()
   });
 }
 
