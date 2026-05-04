@@ -542,16 +542,19 @@ function updateCodexHooksFeature(configPath: string): void {
   } catch {
     content = "";
   }
-  const featuresHeader = /^\s*\[features\]\s*$/imu;
-  if (featuresHeader.test(content)) {
-    const nextSectionAfterFeatures = /(^\s*\[features\]\s*$)([\s\S]*?)(?=^\s*\[[^\]]+\]\s*$|\s*$)/imu;
-    content = content.replace(nextSectionAfterFeatures, (_match, header: string, body: string) => {
-      if (/^\s*codex_hooks\s*=/imu.test(body)) {
-        return `${header}${body.replace(/^\s*codex_hooks\s*=.*$/imu, "codex_hooks = true")}`;
-      }
-      const separator = body.length === 0 ? "\n" : body.endsWith("\n") ? "" : "\n";
-      return `${header}${body}${separator}codex_hooks = true\n`;
-    });
+  const lines = content ? content.split(/\r?\n/u) : [];
+  const featuresIndex = lines.findIndex((line) => /^\s*\[features\]\s*$/iu.test(line));
+  if (featuresIndex >= 0) {
+    let sectionEnd = featuresIndex + 1;
+    while (sectionEnd < lines.length && !/^\s*\[[^\]]+\]\s*$/u.test(lines[sectionEnd])) {
+      sectionEnd += 1;
+    }
+    const bodyLines = lines
+      .slice(featuresIndex + 1, sectionEnd)
+      .filter((line) => !/^\s*codex_hooks\s*=/iu.test(line));
+    while (bodyLines[0] === "") bodyLines.shift();
+    lines.splice(featuresIndex, sectionEnd - featuresIndex, "[features]", "codex_hooks = true", ...bodyLines);
+    content = lines.join("\n");
   } else {
     content = `${content.trimEnd()}\n\n[features]\ncodex_hooks = true\n`;
   }
@@ -629,6 +632,10 @@ async function setup(
   }
 
   const targets = normalizedTarget === "all" ? (["claude", "codex"] as const) : ([normalizedTarget] as Array<"claude" | "codex">);
+
+  if (!options.dryRun && !options.manualOnly && targets.includes("codex")) {
+    updateCodexHooksFeature(path.join(os.homedir(), ".codex", "config.toml"));
+  }
 
   if (!options.dryRun) {
     for (const client of targets) {
