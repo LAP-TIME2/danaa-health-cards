@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DanaaApiError } from "../src/api.js";
-import { browserOpenCommand, codexPermissionGuide, loginInstructionLines, manualOpenInstruction, safeLoginUrl } from "../src/cli.js";
+import { browserOpenCommand, codexPermissionGuide, loginInstructionLines, manualOpenInstruction, runCli, safeLoginUrl } from "../src/cli.js";
 
 describe("login browser helpers", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("builds an OS browser command only for safe web URLs", () => {
     const command = browserOpenCommand("https://danaa-project.vercel.app/settings/integrations/danaa-health-cards");
 
@@ -49,7 +53,19 @@ describe("login browser helpers", () => {
 
     expect(guide).toContain("3. Always allow");
     expect(guide).toContain("does not bypass");
-    expect(guide).toContain("danaa_checkin_next");
+    expect(guide).toContain("DANAA MCP server");
     expect(guide).toContain("setup codex --manual-only");
+  });
+
+  it("keeps codex manual-only setup manual while still installing the skill", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await runCli(["setup", "codex", "--manual-only", "--dry-run"]);
+
+    const output = log.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(output).toContain("Would write codex skill");
+    expect(output).toContain("Would remove DANAA Codex Stop hook");
+    expect(output).not.toContain("Would add Codex Stop hook");
+    expect(output).toContain("Setup complete in manual MCP mode");
   });
 });
