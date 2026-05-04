@@ -7,6 +7,8 @@ import { z } from "zod";
 
 import {
   answerCheckin,
+  DanaaApiError,
+  type DanaaAnswerResponse,
   getSettings,
   nextCheckin,
   skipCheckin,
@@ -14,8 +16,8 @@ import {
   updateSettings,
   type DanaaNextCheckin
 } from "./api.js";
-import { formatCard, formatPostAnswerHint } from "./format.js";
-import { clearLatestCard, readState, rememberLatestCard, updateState } from "./local-state.js";
+import { formatAutomationStatus, formatCard, formatPostAnswerHint } from "./format.js";
+import { clearLatestCard, isFuture, readState, rememberLatestCard, suppressAutoForMinutes, updateState } from "./local-state.js";
 import { redact } from "./security/redact.js";
 
 const leaseCache = new Map<string, DanaaNextCheckin>();
@@ -30,36 +32,51 @@ function rememberCard(card: DanaaNextCheckin): void {
 function latestCard(): { leaseId: string; card: DanaaNextCheckin } | null {
   const state = readState();
   if (!state.latestLeaseId || !state.latestCard) return null;
+  if (!state.latestCard.has_question || !isFuture(state.latestCard.expires_at ?? undefined)) {
+    clearLatestCard(state.latestLeaseId);
+    return null;
+  }
   return { leaseId: state.latestLeaseId, card: state.latestCard };
 }
 
-function answersFromNumbers(card: DanaaNextCheckin, answerNumbers: number[]): Record<string, string | number | boolean> {
+export function answersFromNumbers(
+  card: DanaaNextCheckin,
+  answerNumbers: number[]
+): Record<string, string | number | boolean> {
+  if (answerNumbers.length !== card.questions.length) {
+    throw new DanaaApiError(
+      `답변 번호는 질문 개수(${card.questions.length}개)에 맞춰 입력해주세요.`,
+      400,
+      { error_code: "ANSWER_COUNT_MISMATCH" }
+    );
+  }
   const answers: Record<string, string | number | boolean> = {};
   card.questions.forEach((question, index) => {
     const selectedNumber = answerNumbers[index];
-    if (selectedNumber === undefined) return;
     if (question.input_type === "number") {
       answers[question.field] = selectedNumber;
       return;
     }
     const option = question.options[selectedNumber - 1];
-    if (option !== undefined) {
-      answers[question.field] = option;
+    if (option === undefined) {
+      throw new DanaaApiError(
+        `${index + 1}번 질문은 1~${question.options.length} 사이 번호로 답해주세요.`,
+        400,
+        { error_code: "ANSWER_OPTION_OUT_OF_RANGE" }
+      );
     }
+    answers[question.field] = option;
   });
   return answers;
 }
 
 function suppressAutoAfterAnswer(): void {
-  const autoSuppressedUntil = new Date(
-    Date.now() + AFTER_ANSWER_AUTO_SUPPRESS_MINUTES * 60 * 1000
-  ).toISOString();
-  updateState((state) => ({ ...state, autoSuppressedUntil }));
+  suppressAutoForMinutes(AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
 }
 
-function resultWithCompletionHint(result: unknown): string {
+function resultWithCompletionHint(result: DanaaAnswerResponse): string {
   suppressAutoAfterAnswer();
-  return `${typeof result === "string" ? result : JSON.stringify(result, null, 2)}\n\n${formatPostAnswerHint()}`;
+  return `${redact(result.message || "기록 처리 완료")}\n\n${formatPostAnswerHint()}`;
 }
 
 function text(content: unknown) {
@@ -100,7 +117,7 @@ server.tool(
     try {
       const latest = latestCard();
       if (!latest) {
-        return text("No pending DANAA card was found. Ask for a new check-in first.");
+        return text("지금 다시 보여줄 DANAA 질문카드는 없어요. 남은 질문이 있는지는 \"질문카드 보여줘\"로 새로 확인해야 알 수 있습니다.");
       }
       return text(formatCard(latest.card));
     } catch (error) {
@@ -184,7 +201,7 @@ server.tool(
     try {
       const latest = latestCard();
       if (!latest) {
-        return text("No pending DANAA card was found. Ask for a new check-in first.");
+        return text("지금 답변 대기 중인 DANAA 질문카드는 없어요. 남은 질문이 있는지는 \"질문카드 보여줘\"로 새로 확인해주세요.");
       }
       const result = await answerCheckin(
         latest.leaseId,
@@ -210,7 +227,7 @@ server.tool(
     try {
       const latest = latestCard();
       if (!latest) {
-        return text("No pending DANAA card was found. Ask for a new check-in first.");
+        return text("지금 건너뛸 DANAA 질문카드는 없어요. 남은 질문이 있는지는 \"질문카드 보여줘\"로 새로 확인해주세요.");
       }
       const result = await skipCheckin(latest.leaseId, idempotencyKey);
       leaseCache.delete(latest.leaseId);
@@ -239,20 +256,20 @@ server.tool(
   }
 );
 
-server.tool("danaa_checkin_status", "Read local DANAA Health Cards automation state.", {}, async () => {
-  try {
-    const state = readState();
-    return text({
-      hasPendingCard: Boolean(state.latestLeaseId),
-      latestShownAt: state.latestShownAt ?? null,
-      autoSuppressedUntil: state.autoSuppressedUntil ?? null,
-      snoozeUntil: state.snoozeUntil ?? null,
-      dndUntil: state.dndUntil ?? null
-    });
+server.tool(
+  "danaa_checkin_status",
+  "Read local DANAA Health Cards automation state. Do not use this to check whether server-side cards remain; use danaa_checkin_next for that.",
+  {},
+  async () => {
+    try {
+      latestCard();
+      const state = readState();
+      return text(formatAutomationStatus(state));
   } catch (error) {
     return errorText(error);
   }
-});
+  }
+);
 
 server.tool("danaa_settings_get", "Read DANAA Health Cards CLI settings.", {}, async () => {
   try {

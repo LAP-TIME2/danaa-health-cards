@@ -1,6 +1,16 @@
+import { closeSync, existsSync, mkdirSync, openSync, statSync, unlinkSync } from "node:fs";
+import path from "node:path";
+
 import { DanaaApiError, nextCheckin } from "./api.js";
 import { formatAutoHookInstruction } from "./format.js";
-import { ensureInstalledAt, isFuture, readState, rememberLatestCard, updateState } from "./local-state.js";
+import {
+  ensureInstalledAt,
+  getDataDir,
+  isFuture,
+  rememberLatestCard,
+  suppressAutoForMinutes,
+  updateState
+} from "./local-state.js";
 
 type HookClient = "claude" | "codex";
 
@@ -44,9 +54,48 @@ function outputContinuation(reason: string): void {
   process.stdout.write(JSON.stringify({ decision: "block", reason }));
 }
 
+function acquireHookLock(): (() => void) | null {
+  const lockPath = path.join(getDataDir(), "hook.lock");
+  mkdirSync(getDataDir(), { recursive: true });
+  try {
+    const fd = openSync(lockPath, "wx");
+    closeSync(fd);
+  } catch {
+    try {
+      const ageMs = Date.now() - statSync(lockPath).mtimeMs;
+      if (ageMs > 15_000) {
+        unlinkSync(lockPath);
+        const fd = openSync(lockPath, "wx");
+        closeSync(fd);
+      } else {
+        return null;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return () => {
+    if (existsSync(lockPath)) unlinkSync(lockPath);
+  };
+}
+
+function rememberBlockedCheckin(card: Awaited<ReturnType<typeof nextCheckin>>): void {
+  if (card.blocked_reason === "cooldown" && card.next_available_at) {
+    updateState((state) => ({ ...state, autoSuppressedUntil: card.next_available_at ?? state.autoSuppressedUntil }));
+  }
+  if (card.blocked_reason === "snoozed" && card.next_available_at) {
+    updateState((state) => ({ ...state, snoozeUntil: card.next_available_at ?? state.snoozeUntil }));
+  }
+  if ((card.blocked_reason === "daily_limit" || card.blocked_reason === "no_pending") && card.next_available_at) {
+    updateState((state) => ({ ...state, autoSuppressedUntil: card.next_available_at ?? state.autoSuppressedUntil }));
+  }
+}
+
 export async function runStopHook(client: HookClient): Promise<void> {
   const input = parseInput(await readStdin());
   if (shouldSkipByLocalState(input)) return;
+  const releaseLock = acquireHookLock();
+  if (!releaseLock) return;
 
   try {
     const card = await nextCheckin();
@@ -55,7 +104,10 @@ export async function runStopHook(client: HookClient): Promise<void> {
       lastHookTurnId: input.turn_id ?? state.lastHookTurnId
     }));
 
-    if (!card.has_question || !card.lease_id) return;
+    if (!card.has_question || !card.lease_id) {
+      rememberBlockedCheckin(card);
+      return;
+    }
 
     rememberLatestCard(card);
     outputContinuation(formatAutoHookInstruction(card));
@@ -65,6 +117,8 @@ export async function runStopHook(client: HookClient): Promise<void> {
     }
     // Hooks must never interrupt coding work. API/keyring/network failures fail silently.
     return;
+  } finally {
+    releaseLock();
   }
 
   void client;
