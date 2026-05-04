@@ -10,6 +10,7 @@ export type DanaaQuestion = {
   text: string;
   input_type: string;
   options: Array<string | number | boolean>;
+  option_labels?: Record<string, string> | null;
   condition?: string | null;
 };
 

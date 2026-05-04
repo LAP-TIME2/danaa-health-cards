@@ -23,10 +23,11 @@ const OPTION_LABELS: Record<string, string> = {
   two_plus: "두 번 이상",
   yes: "예",
   true: "예",
-  hearty: "든든하게 먹었어요",
-  skipped: "거름",
-  enough: "충분",
-  little: "조금",
+  simple: "먹었어요",
+  hearty: "먹었어요",
+  skipped: "못 먹었어요",
+  enough: "충분히 먹었어요",
+  little: "조금 먹었어요",
   light: "가볍게",
   moderate: "적당히",
   heavy: "많이",
@@ -49,7 +50,9 @@ const OPTION_LABELS: Record<string, string> = {
   over_8h: "8시간 이상"
 };
 
-function formatOption(option: string | number | boolean, optionIndex: number): string {
+function formatOption(question: DanaaQuestion, option: string | number | boolean, optionIndex: number): string {
+  const serverLabel = question.option_labels?.[String(option)];
+  if (serverLabel) return serverLabel;
   if (option === true) return "예";
   if (option === false) return "아니요";
   if (typeof option === "number") return String(option);
@@ -85,7 +88,7 @@ export function formatQuestion(question: DanaaQuestion, index: number): string {
     return lines.join("\n");
   }
 
-  lines.push(`선택: ${question.options.map((option, optionIndex) => `${optionIndex + 1}. ${formatOption(option, optionIndex)}`).join(" / ")}`);
+  lines.push(`선택: ${question.options.map((option, optionIndex) => `${optionIndex + 1}. ${formatOption(question, option, optionIndex)}`).join(" / ")}`);
   return lines.join("\n");
 }
 
