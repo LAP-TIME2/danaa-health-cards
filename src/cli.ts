@@ -58,7 +58,7 @@ const ALLOWED_LOCAL_LOGIN_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::
 const SENSITIVE_LOGIN_QUERY_KEY = /(?:^|_|\b)(access[_-]?token|refresh[_-]?token|token|jwt|secret|session|cookie|email|device[_-]?code|user[_-]?code)(?:$|_|\b)/iu;
 const SKILL_TEXT = `---
 name: danaa-checkin
-description: Use when the user asks for a DANAA health check-in card, replies with only health check-in option numbers, or says skip, snooze, 30분 뒤, 오늘 그만, or dnd.
+description: DANAA health check-in cards and number answers.
 ---
 
 # DANAA Check-in

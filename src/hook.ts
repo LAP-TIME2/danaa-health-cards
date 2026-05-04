@@ -1,7 +1,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
-import { DanaaApiError, nextCheckin } from "./api.js";
+import { nextCheckin } from "./api.js";
 import { formatAutoHookInstruction } from "./format.js";
 import {
   ensureInstalledAt,
@@ -21,6 +21,11 @@ type StopHookInput = {
   turn_id?: string;
 };
 
+type ParsedStopHookInput = {
+  input: StopHookInput;
+  valid: boolean;
+};
+
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) {
@@ -29,12 +34,12 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function parseInput(raw: string): StopHookInput {
-  if (!raw.trim()) return {};
+function parseInput(raw: string): ParsedStopHookInput {
+  if (!raw.trim()) return { input: {}, valid: true };
   try {
-    return JSON.parse(raw) as StopHookInput;
+    return { input: JSON.parse(raw) as StopHookInput, valid: true };
   } catch {
-    return {};
+    return { input: {}, valid: false };
   }
 }
 
@@ -95,12 +100,16 @@ function rememberBlockedCheckin(card: Awaited<ReturnType<typeof nextCheckin>>): 
 }
 
 export async function runStopHook(client: HookClient): Promise<void> {
-  const input = parseInput(await readStdin());
-  if (shouldSkipByLocalState(input)) return;
-  const releaseLock = acquireHookLock();
-  if (!releaseLock) return;
+  let releaseLock: (() => void) | null = null;
 
   try {
+    const { input, valid } = parseInput(await readStdin());
+    if (!valid) return;
+    if (shouldSkipByLocalState(input)) return;
+
+    releaseLock = acquireHookLock();
+    if (!releaseLock) return;
+
     const card = await nextCheckin();
     updateState((state) => ({
       ...state,
@@ -114,14 +123,11 @@ export async function runStopHook(client: HookClient): Promise<void> {
 
     rememberLatestCard(card);
     outputContinuation(formatAutoHookInstruction(card));
-  } catch (error) {
-    if (!(error instanceof DanaaApiError)) {
-      return;
-    }
-    // Hooks must never interrupt coding work. API/keyring/network failures fail silently.
+  } catch {
+    // Hooks must never interrupt coding work. Any API, keyring, local-state, or client encoding failure fails silently.
     return;
   } finally {
-    releaseLock();
+    releaseLock?.();
   }
 
   void client;

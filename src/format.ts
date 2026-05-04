@@ -72,7 +72,7 @@ export function formatQuestion(question: DanaaQuestion, index: number): string {
     return lines.join("\n");
   }
 
-  lines.push(question.options.map((option, optionIndex) => `${optionIndex + 1}. ${formatOption(option, optionIndex)}`).join("  "));
+  lines.push(`선택: ${question.options.map((option, optionIndex) => `${optionIndex + 1}. ${formatOption(option, optionIndex)}`).join(" / ")}`);
   return lines.join("\n");
 }
 
@@ -146,7 +146,7 @@ export function formatAutoCardPrompt(card: DanaaNextCheckin): string {
 export function formatAutoHookInstruction(card: DanaaNextCheckin): string {
   return [
     "아래 DANAA 건강 체크인 카드를 답변 맨 아래에 한 번만 덧붙여주세요.",
-    "추가 설명은 붙이지 말고 카드 내용만 보여주세요.",
+    "추가 설명은 붙이지 말고 카드 내용의 줄바꿈과 선택지 가로 배열을 그대로 유지해주세요.",
     "",
     formatCard(card)
   ].join("\n");

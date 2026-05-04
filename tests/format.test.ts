@@ -43,8 +43,7 @@ describe("formatCard", () => {
     expect(rendered).toContain("DANAA 건강 체크인 카드입니다 (수면).");
     expect(rendered).toContain("생활습관 기록용이며, 의료 조언은 아니에요.");
     expect(rendered).toContain("Q1. 수면의 질 - 어젯밤 잠은 잘 주무셨나요?");
-    expect(rendered).toContain("1. 좋음");
-    expect(rendered).toContain("2. 보통");
+    expect(rendered).toContain("선택: 1. 좋음 / 2. 보통 / 3. 나쁨");
     expect(rendered).toContain('답변하시려면 번호를 알려주세요. 예: "1".');
     expectNoInternalWords(rendered);
   });
@@ -76,12 +75,8 @@ describe("formatCard", () => {
       ]
     });
 
-    expect(rendered).toContain("1. 고르게 먹었어요");
-    expect(rendered).toContain("2. 밥·빵·면 위주였어요");
-    expect(rendered).toContain("3. 고기·채소 위주였어요");
-    expect(rendered).toContain("1. 없음");
-    expect(rendered).toContain("2. 한 번");
-    expect(rendered).toContain("3. 두 번 이상");
+    expect(rendered).toContain("선택: 1. 고르게 먹었어요 / 2. 밥·빵·면 위주였어요 / 3. 고기·채소 위주였어요");
+    expect(rendered).toContain("선택: 1. 없음 / 2. 한 번 / 3. 두 번 이상");
     expect(rendered).not.toContain("balanced");
     expect(rendered).not.toContain("carb_heavy");
     expect(rendered).not.toContain("two_plus");
@@ -101,7 +96,7 @@ describe("formatCard", () => {
       ]
     });
 
-    expect(rendered).toContain("1. 선택지 1");
+    expect(rendered).toContain("선택: 1. 선택지 1");
     expect(rendered).not.toContain("raw_backend_enum");
   });
 
@@ -119,7 +114,7 @@ describe("formatCard", () => {
     expect(rendered).toContain("답변 맨 아래에 한 번만 덧붙여주세요.");
     expect(rendered).toContain("DANAA 건강 체크인 카드입니다 (수면).");
     expect(rendered).toContain("Q1. 수면의 질 - 어젯밤 잠은 잘 주무셨나요?");
-    expect(rendered).toContain("1. 좋음");
+    expect(rendered).toContain("선택: 1. 좋음 / 2. 보통 / 3. 나쁨");
     expectNoInternalWords(rendered);
   });
 
@@ -138,8 +133,7 @@ describe("formatCard", () => {
       ]
     });
 
-    expect(rendered).toContain("4. 스트레스");
-    expect(rendered).toContain("5. 매우 스트레스");
+    expect(rendered).toContain("4. 스트레스 / 5. 매우 스트레스");
     expect(rendered).not.toContain("very_stressed");
   });
 
@@ -166,11 +160,7 @@ describe("formatCard", () => {
 
     expect(rendered).toContain("Q1. 수면의 질 - 어젯밤 잠은 잘 주무셨나요?");
     expect(rendered).toContain("Q2. 수면 시간 - 대략 몇 시간 정도 주무셨나요?");
-    expect(rendered).toContain("1. 5시간 미만");
-    expect(rendered).toContain("2. 5~6시간");
-    expect(rendered).toContain("3. 6~7시간");
-    expect(rendered).toContain("4. 7~8시간");
-    expect(rendered).toContain("5. 8시간 이상");
+    expect(rendered).toContain("선택: 1. 5시간 미만 / 2. 5~6시간 / 3. 6~7시간 / 4. 7~8시간 / 5. 8시간 이상");
     expect(rendered).not.toContain("under_5");
     expect(rendered).not.toContain("between_5_6");
     expect(rendered).not.toContain("over_8");
