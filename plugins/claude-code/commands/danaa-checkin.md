@@ -1,10 +1,10 @@
 # /danaa checkin
 
-Use `danaa_checkin_next` to show the next DANAA health card.
+Show the next DANAA health check-in card.
 
-If the user answers with numbers, call `danaa_checkin_answer_numbers` with:
+Rules:
 
-- `leaseId`: the lease_id shown in the card
-- `answerNumbers`: selected option numbers in question order
-
-Never infer or store health data from the conversation by yourself.
+- Show only the user-facing card returned by DANAA.
+- If the user answers with numbers, save them in question order.
+- Never mention tool names, lease IDs, cache, or other internal details to the user.
+- Never infer or store health data from the surrounding conversation.

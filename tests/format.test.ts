@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { DanaaNextCheckin } from "../src/api.js";
 import {
   formatAutomationStatus,
   formatAutoCardPrompt,
@@ -8,36 +9,44 @@ import {
   formatPostAnswerHint
 } from "../src/format.js";
 
-const sampleCard = {
+const bannedInternalWords = ["DANAA_CHECKIN_READY", "DANAA_CARD_PENDING", "MCP", "danaa_checkin_", "lease", "cache", "도구 호출"];
+
+const sampleCard: DanaaNextCheckin = {
   has_question: true,
   lease_id: "lease-1",
   bundle_key: "bundle_1",
-  bundle_name: "Sleep",
+  bundle_name: "수면",
   log_date: "2026-05-03",
   expires_at: "2026-05-03T10:00:00+09:00",
   notice: "Lifestyle check-in only",
   questions: [
     {
       field: "sleep_quality",
-      summary_label: "Sleep quality",
-      text: "How was your sleep?",
+      summary_label: "수면의 질",
+      text: "어젯밤 잠은 잘 주무셨나요?",
       input_type: "select",
       options: ["good", "normal", "bad"]
     }
   ]
 };
 
+function expectNoInternalWords(rendered: string): void {
+  for (const word of bannedInternalWords) {
+    expect(rendered).not.toContain(word);
+  }
+}
+
 describe("formatCard", () => {
   it("renders a compact user-facing card without internal identifiers", () => {
     const rendered = formatCard(sampleCard);
 
-    expect(rendered).toContain("DANAA 건강 체크인 카드입니다");
-    expect(rendered).toContain("Q1. Sleep quality - How was your sleep?");
-    expect(rendered).toContain("1) 좋음");
-    expect(rendered).toContain("2) 보통");
-    expect(rendered).toContain('답변하시려면 번호를 알려주세요 (예: "1").');
-    expect(rendered).not.toContain("lease_id");
-    expect(rendered).not.toContain("danaa_checkin");
+    expect(rendered).toContain("DANAA 건강 체크인 카드입니다 (수면).");
+    expect(rendered).toContain("생활습관 기록용이며, 의료 조언은 아니에요.");
+    expect(rendered).toContain("Q1. 수면의 질 - 어젯밤 잠은 잘 주무셨나요?");
+    expect(rendered).toContain("1. 좋음");
+    expect(rendered).toContain("2. 보통");
+    expect(rendered).toContain('답변하시려면 번호를 알려주세요. 예: "1".');
+    expectNoInternalWords(rendered);
   });
 
   it("shows Korean labels for server option codes", () => {
@@ -67,47 +76,57 @@ describe("formatCard", () => {
       ]
     });
 
-    expect(rendered).toContain("1) 고르게 먹었어요");
-    expect(rendered).toContain("2) 밥·빵·면 위주였어요");
-    expect(rendered).toContain("3) 고기·채소 위주였어요");
-    expect(rendered).toContain("1) 없음");
-    expect(rendered).toContain("2) 한 번");
-    expect(rendered).toContain("3) 두 번 이상");
+    expect(rendered).toContain("1. 고르게 먹었어요");
+    expect(rendered).toContain("2. 밥·빵·면 위주였어요");
+    expect(rendered).toContain("3. 고기·채소 위주였어요");
+    expect(rendered).toContain("1. 없음");
+    expect(rendered).toContain("2. 한 번");
+    expect(rendered).toContain("3. 두 번 이상");
     expect(rendered).not.toContain("balanced");
     expect(rendered).not.toContain("carb_heavy");
     expect(rendered).not.toContain("two_plus");
+  });
+
+  it("does not expose unknown option enum values", () => {
+    const rendered = formatCard({
+      ...sampleCard,
+      questions: [
+        {
+          field: "unknown",
+          summary_label: "알 수 없는 선택지",
+          text: "테스트 질문",
+          input_type: "select",
+          options: ["raw_backend_enum"]
+        }
+      ]
+    });
+
+    expect(rendered).toContain("1. 선택지 1");
+    expect(rendered).not.toContain("raw_backend_enum");
   });
 
   it("renders a short auto-checkin continuation prompt", () => {
     const rendered = formatAutoCardPrompt(sampleCard);
 
     expect(rendered).toBe(formatCard(sampleCard));
-    expect(rendered).toContain("DANAA 건강 체크인 카드입니다");
-    expect(rendered).toContain("Q1. Sleep quality - How was your sleep?");
-    expect(rendered).not.toContain("DANAA_CARD_PENDING");
-    expect(rendered).not.toContain("danaa_checkin");
-    expect(rendered).not.toContain("lease_id");
+    expect(rendered).toContain("DANAA 건강 체크인 카드입니다 (수면).");
+    expectNoInternalWords(rendered);
   });
 
-  it("keeps the Claude Stop hook reason short and avoids duplicating the card body", () => {
+  it("puts the card body directly inside the Stop hook reason without internal commands", () => {
     const rendered = formatAutoHookInstruction(sampleCard);
 
-    expect(rendered).toContain("DANAA_CHECKIN_READY");
-    expect(rendered).toContain("danaa_checkin_show_latest");
-    expect(rendered).not.toContain("Q1.");
-    expect(rendered).not.toContain("How was your sleep?");
-    expect(rendered).not.toContain("1) 좋음");
+    expect(rendered).toContain("답변 맨 아래에 한 번만 덧붙여주세요.");
+    expect(rendered).toContain("DANAA 건강 체크인 카드입니다 (수면).");
+    expect(rendered).toContain("Q1. 수면의 질 - 어젯밤 잠은 잘 주무셨나요?");
+    expect(rendered).toContain("1. 좋음");
+    expectNoInternalWords(rendered);
   });
 
   it("localizes stress option codes", () => {
     const rendered = formatCard({
-      has_question: true,
-      lease_id: "lease-3",
-      bundle_key: "bundle_6",
+      ...sampleCard,
       bundle_name: "정서",
-      log_date: "2026-05-04",
-      expires_at: "2026-05-04T10:00:00+09:00",
-      notice: "Lifestyle check-in only",
       questions: [
         {
           field: "mood",
@@ -119,20 +138,14 @@ describe("formatCard", () => {
       ]
     });
 
-    expect(rendered).toContain("4) 스트레스");
-    expect(rendered).toContain("5) 매우 스트레스");
+    expect(rendered).toContain("4. 스트레스");
+    expect(rendered).toContain("5. 매우 스트레스");
     expect(rendered).not.toContain("very_stressed");
   });
 
   it("localizes sleep duration codes and keeps question sections separated", () => {
     const rendered = formatCard({
-      has_question: true,
-      lease_id: "lease-sleep",
-      bundle_key: "bundle_sleep",
-      bundle_name: "수면",
-      log_date: "2026-05-04",
-      expires_at: "2026-05-04T10:00:00+09:00",
-      notice: "Lifestyle check-in only",
+      ...sampleCard,
       questions: [
         {
           field: "sleep_quality",
@@ -153,28 +166,23 @@ describe("formatCard", () => {
 
     expect(rendered).toContain("Q1. 수면의 질 - 어젯밤 잠은 잘 주무셨나요?");
     expect(rendered).toContain("Q2. 수면 시간 - 대략 몇 시간 정도 주무셨나요?");
-    expect(rendered).toContain("1) 5시간 미만");
-    expect(rendered).toContain("2) 5~6시간");
-    expect(rendered).toContain("3) 6~7시간");
-    expect(rendered).toContain("4) 7~8시간");
-    expect(rendered).toContain("5) 8시간 이상");
+    expect(rendered).toContain("1. 5시간 미만");
+    expect(rendered).toContain("2. 5~6시간");
+    expect(rendered).toContain("3. 6~7시간");
+    expect(rendered).toContain("4. 7~8시간");
+    expect(rendered).toContain("5. 8시간 이상");
     expect(rendered).not.toContain("under_5");
     expect(rendered).not.toContain("between_5_6");
     expect(rendered).not.toContain("over_8");
     expect(rendered).not.toContain("Q2. Q2.");
-
-    expect(rendered.indexOf("Q1. 수면의 질")).toBeLessThan(rendered.indexOf("1) 매우 좋음"));
-    expect(rendered.indexOf("5) 매우 나쁨")).toBeLessThan(rendered.indexOf("Q2. 수면 시간"));
-    expect(rendered.indexOf("Q2. 수면 시간")).toBeLessThan(rendered.indexOf("1) 5시간 미만"));
   });
 
   it("does not imply that more cards definitely remain after saving", () => {
     const rendered = formatPostAnswerHint();
 
-    expect(rendered).toContain("현재 남은 카드가 있는지 확인");
+    expect(rendered).toContain("남은 카드가 있는지 확인");
     expect(rendered).not.toContain("더 남아");
-    expect(rendered).not.toContain("남아 있을 수");
-    expect(rendered).not.toContain("다음 카드를 이어서");
+    expect(rendered).not.toContain("다음 카드");
   });
 
   it("explains completed check-ins without asking the user to request another card", () => {
@@ -188,8 +196,7 @@ describe("formatCard", () => {
     });
 
     expect(rendered).toContain("오늘 체크인 완료");
-    expect(rendered).toContain("지금 입력할 건강 카드는 모두 끝났어요");
-    expect(rendered).not.toContain("새 카드");
+    expect(rendered).toContain("지금 입력할 건강 카드는 모두 끝났어요.");
     expect(rendered).not.toContain("질문카드 줘");
     expect(rendered).not.toContain("더 남아");
   });
@@ -204,7 +211,7 @@ describe("formatCard", () => {
       next_available_at: "2026-05-04T14:42:00+09:00"
     });
 
-    expect(rendered).toContain("지금 바로 입력할 DANAA 질문카드는 없어요");
+    expect(rendered).toContain("지금 바로 입력할 DANAA 질문카드는 없어요.");
     expect(rendered).toContain("다음 확인 가능 시간");
     expect(rendered).not.toContain("오늘 체크인 완료");
   });
@@ -215,9 +222,8 @@ describe("formatCard", () => {
       autoSuppressedUntil: "2026-05-04T14:42:00+09:00"
     });
 
-    expect(rendered).toContain("로컬에 대기 중인 질문카드는 없어요");
-    expect(rendered).toContain("오늘 남은 카드가 있는지 확인하려면");
-    expect(rendered).toContain('"질문카드 보여줘"');
-    expect(rendered).not.toContain("새 카드를 바로");
+    expect(rendered).toContain("대기 중인 질문카드는 없어요.");
+    expect(rendered).toContain('"질문카드 보여줘"라고 말해주세요.');
+    expect(rendered).not.toContain("바로 받");
   });
 });

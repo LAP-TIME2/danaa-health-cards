@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DanaaApiError, type DanaaNextCheckin } from "../src/api.js";
-import { answersFromNumbers } from "../src/server.js";
+import { answersFromNumbers, resultWithCompletionHint } from "../src/server.js";
 
 const twoQuestionCard: DanaaNextCheckin = {
   has_question: true,
@@ -45,5 +45,22 @@ describe("answersFromNumbers", () => {
   it("rejects out-of-range option numbers before submitting to the server", () => {
     expect(() => answersFromNumbers(twoQuestionCard, [4, 1])).toThrow(DanaaApiError);
     expect(() => answersFromNumbers(twoQuestionCard, [4, 1])).toThrow("1~3");
+  });
+});
+
+describe("resultWithCompletionHint", () => {
+  it("does not claim that another card definitely remains", () => {
+    const rendered = resultWithCompletionHint({
+      status: "saved",
+      saved_fields: ["meal_balance"],
+      skipped_fields: [],
+      daily_log_date: "2026-05-04",
+      message: "server message"
+    });
+
+    expect(rendered).toContain("기록 완료");
+    expect(rendered).toContain("남은 카드가 있는지 확인");
+    expect(rendered).not.toContain("다음 카드");
+    expect(rendered).not.toContain("더 남아");
   });
 });

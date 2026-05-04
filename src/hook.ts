@@ -39,8 +39,11 @@ function parseInput(raw: string): StopHookInput {
 }
 
 function shouldSkipByLocalState(input: StopHookInput): boolean {
+  const lastMessage = input.last_assistant_message ?? "";
   if (input.stop_hook_active) return true;
-  if (input.last_assistant_message?.includes("DANAA_CARD_PENDING")) return true;
+  if (lastMessage.includes("DANAA_CARD_PENDING")) return true;
+  if (lastMessage.includes("DANAA 건강 체크인 카드")) return true;
+  if (lastMessage.includes("DANAA") && (lastMessage.includes("Q1.") || lastMessage.includes("질문") || lastMessage.includes("체크인"))) return true;
 
   const state = ensureInstalledAt();
   if (isFuture(state.snoozeUntil) || isFuture(state.dndUntil) || isFuture(state.autoSuppressedUntil)) return true;
@@ -51,7 +54,7 @@ function shouldSkipByLocalState(input: StopHookInput): boolean {
 }
 
 function outputContinuation(reason: string): void {
-  process.stdout.write(JSON.stringify({ decision: "block", reason }));
+  process.stdout.write(JSON.stringify({ decision: "block", reason, suppressOutput: true }));
 }
 
 function acquireHookLock(): (() => void) | null {
