@@ -3,13 +3,13 @@
 One-line install:
 
 ```bash
-claude mcp add danaa-health-cards -- npx -y github:LAP-TIME2/danaa-health-cards
+npx -y github:LAP-TIME2/danaa-health-cards setup claude
 ```
 
-Login:
+Dry-run:
 
 ```bash
-npx -y github:LAP-TIME2/danaa-health-cards login
+npx -y github:LAP-TIME2/danaa-health-cards setup claude --dry-run
 ```
 
 Local backend development only:

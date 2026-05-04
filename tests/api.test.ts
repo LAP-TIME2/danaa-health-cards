@@ -17,6 +17,7 @@ describe("api base", () => {
     delete process.env.DANAA_API_BASE;
 
     expect(getApiBase()).toBe(DEFAULT_DANAA_API_BASE);
+    expect(getApiBase()).toBe("https://danaa.r-e.kr/api/v1");
   });
 
   it("allows explicit local override for development", () => {

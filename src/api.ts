@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 
-export const DEFAULT_DANAA_API_BASE = "https://danaa-project.vercel.app/api/v1";
+import { getStoredToken, TokenStoreError } from "./token-store.js";
+
+export const DEFAULT_DANAA_API_BASE = "https://danaa.r-e.kr/api/v1";
 
 export type DanaaQuestion = {
   field: string;
@@ -68,8 +70,21 @@ export function getApiBase(): string {
 export function getTokenFromEnv(): string {
   const token = process.env.DANAA_HEALTH_TOKEN;
   if (!token) {
+    try {
+      const storedToken = getStoredToken();
+      if (storedToken) return storedToken;
+    } catch (error) {
+      if (error instanceof TokenStoreError) {
+        throw new DanaaApiError(
+          "DANAA token is unavailable because the OS keyring could not be read. Run `danaa-health-cards doctor`.",
+          401,
+          { error_code: "TOKEN_KEYRING_UNAVAILABLE" }
+        );
+      }
+      throw error;
+    }
     throw new DanaaApiError(
-      "DANAA_HEALTH_TOKEN is not set. Run `danaa-health-cards login` and set the token as an environment variable.",
+      "DANAA token is not set. Run `danaa-health-cards setup claude`, `setup codex`, or `login`.",
       401,
       { error_code: "TOKEN_MISSING" }
     );

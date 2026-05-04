@@ -1,15 +1,15 @@
 # Codex CLI Setup
 
-Use the same MCP server entrypoint as Claude Code:
+Run one command:
 
 ```bash
-npx -y github:LAP-TIME2/danaa-health-cards
+npx -y github:LAP-TIME2/danaa-health-cards setup codex
 ```
 
-Connect your DANAA account:
+Dry-run:
 
 ```bash
-npx -y github:LAP-TIME2/danaa-health-cards login
+npx -y github:LAP-TIME2/danaa-health-cards setup codex --dry-run
 ```
 
-The login command uses the deployed DANAA API by default and does not ask for localhost.
+Setup saves the DANAA token to the OS keyring and registers Codex CLI without writing the token to Codex config.
