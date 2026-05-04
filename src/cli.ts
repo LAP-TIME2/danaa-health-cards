@@ -206,6 +206,14 @@ function quoteCmdArg(value: string): string {
   return `"${value.replace(/"/g, '\\"')}"`;
 }
 
+function quoteHookArg(value: string): string {
+  const normalized = process.platform === "win32" && /^[A-Za-z]:[\\/]/u.test(value) ? value.replace(/\\/g, "/") : value;
+  if (process.platform === "win32" && /^[A-Za-z]:\//u.test(normalized)) {
+    return `"${normalized.replace(/"/g, '\\"')}"`;
+  }
+  return quoteCmdArg(normalized);
+}
+
 function formatShellCommand(command: string, args: string[]): string {
   return [command, ...args].map(quoteCmdArg).join(" ");
 }
@@ -269,7 +277,7 @@ function ensureLocalRunner(options: Pick<CliOptions, "dryRun">): string {
 }
 
 function nodeCommand(entry: string, args: string[]): string {
-  return [process.execPath, entry, ...args].map(quoteCmdArg).join(" ");
+  return [process.execPath, entry, ...args].map(quoteHookArg).join(" ");
 }
 
 function commandForClient(
