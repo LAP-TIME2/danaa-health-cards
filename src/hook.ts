@@ -11,8 +11,6 @@ type StopHookInput = {
   turn_id?: string;
 };
 
-const MIN_FIRST_CARD_MINUTES = 30;
-
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) {
@@ -37,10 +35,6 @@ function shouldSkipByLocalState(input: StopHookInput): boolean {
   const state = ensureInstalledAt();
   if (isFuture(state.snoozeUntil) || isFuture(state.dndUntil)) return true;
   if (input.turn_id && state.lastHookTurnId === input.turn_id) return true;
-
-  const installedAt = state.installedAt ? Date.parse(state.installedAt) : Date.now();
-  const allowEarly = process.env.DANAA_HEALTH_CARDS_ALLOW_EARLY === "1";
-  if (!allowEarly && Date.now() - installedAt < MIN_FIRST_CARD_MINUTES * 60 * 1000) return true;
 
   return false;
 }
