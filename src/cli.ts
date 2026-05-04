@@ -21,12 +21,11 @@ import {
 import { formatCard } from "./format.js";
 import { runStopHook } from "./hook.js";
 import {
-  clearLatestCard,
+  completeLatestCard,
   ensureInstalledAt,
   getDataDir,
   readState,
   rememberLatestCard,
-  suppressAutoForMinutes,
   updateState
 } from "./local-state.js";
 import { redact } from "./security/redact.js";
@@ -641,7 +640,9 @@ export function codexPermissionGuide(): string {
     "Codex first-use permission:",
     "  Codex may ask whether to allow DANAA MCP tools such as `danaa_checkin_next`.",
     "  Choose `3. Always allow` once for each DANAA tool you trust.",
-    "  This is Codex's own safety prompt, so DANAA setup does not bypass it automatically."
+    "  This is Codex's own safety prompt, so DANAA setup does not bypass it automatically.",
+    "  If Windows keeps showing `Stop hook failed` or `CreateProcessAsUser failed: 5`, rerun `setup codex --manual-only`.",
+    "  Manual-only mode still supports `질문카드 보여줘` and number answers through MCP."
   ].join("\n");
 }
 
@@ -739,8 +740,7 @@ async function answerLatest(rawNumbers: string[]): Promise<void> {
     });
   }
   const result = await answerCheckin(state.latestLeaseId, answerNumbersFromCard(state.latestCard, numbers));
-  clearLatestCard(state.latestLeaseId);
-  suppressAutoForMinutes(AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
+  completeLatestCard(state.latestLeaseId, AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
   console.log(result.message);
 }
 
@@ -752,8 +752,7 @@ async function skipLatest(): Promise<void> {
     });
   }
   const result = await skipCheckin(state.latestLeaseId);
-  clearLatestCard(state.latestLeaseId);
-  suppressAutoForMinutes(AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
+  completeLatestCard(state.latestLeaseId, AFTER_ANSWER_AUTO_SUPPRESS_MINUTES);
   console.log(result.message);
 }
 

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   clearLatestCard,
+  completeLatestCard,
   getStatePath,
   isFuture,
   readState,
@@ -76,5 +77,33 @@ describe("local state", () => {
     suppressAutoForMinutes(10);
 
     expect(isFuture(readState().autoSuppressedUntil)).toBe(true);
+  });
+
+  it("clears a completed lease and suppresses the next automatic card in one state update", () => {
+    rememberLatestCard({
+      has_question: true,
+      lease_id: "lease-complete",
+      bundle_key: "bundle_1",
+      bundle_name: "Sleep",
+      log_date: "2026-05-04",
+      expires_at: "2099-01-01T00:00:00+09:00",
+      questions: [
+        {
+          field: "sleep_quality",
+          summary_label: "Sleep quality",
+          text: "How was your sleep?",
+          input_type: "select",
+          options: ["good", "normal", "bad"]
+        }
+      ],
+      notice: "Lifestyle check-in only"
+    });
+
+    completeLatestCard("lease-complete", 10);
+
+    const state = readState();
+    expect(state.latestLeaseId).toBeUndefined();
+    expect(state.latestCard).toBeUndefined();
+    expect(isFuture(state.autoSuppressedUntil)).toBe(true);
   });
 });

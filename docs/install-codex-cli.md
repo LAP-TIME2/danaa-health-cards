@@ -14,6 +14,8 @@ Manual-only install:
 npx -y github:LAP-TIME2/danaa-health-cards setup codex --manual-only
 ```
 
+Use this if Windows Codex repeatedly shows `Stop hook failed` or `CreateProcessAsUser failed: 5`. That failure happens before the DANAA Node.js process can run, so manual-only mode keeps the MCP tools working while disabling automatic Stop-hook cards.
+
 Dry-run:
 
 ```bash
@@ -38,6 +40,7 @@ First Codex permission prompt:
 - Codex may ask whether to allow `danaa_checkin_next` or an answer tool.
 - Choose `3. Always allow` if you trust the DANAA plugin and want the check-in flow to continue smoothly.
 - DANAA setup cannot and should not silently set this for you.
+- If Stop hook errors keep appearing on Windows, rerun `setup codex --manual-only` and trigger cards with `질문카드 보여줘`.
 
 If today's cards are already complete:
 

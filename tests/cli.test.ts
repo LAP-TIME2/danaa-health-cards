@@ -50,5 +50,6 @@ describe("login browser helpers", () => {
     expect(guide).toContain("3. Always allow");
     expect(guide).toContain("does not bypass");
     expect(guide).toContain("danaa_checkin_next");
+    expect(guide).toContain("setup codex --manual-only");
   });
 });

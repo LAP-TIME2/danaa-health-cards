@@ -64,6 +64,17 @@ export function clearLatestCard(leaseId?: string): void {
   });
 }
 
+export function completeLatestCard(leaseId?: string, suppressMinutes = 10): LocalState {
+  const autoSuppressedUntil = new Date(Date.now() + suppressMinutes * 60 * 1000).toISOString();
+  return updateState((state) => {
+    if (leaseId && state.latestLeaseId && state.latestLeaseId !== leaseId) {
+      return { ...state, autoSuppressedUntil };
+    }
+    const { latestCard, latestLeaseId, ...rest } = state;
+    return { ...rest, autoSuppressedUntil };
+  });
+}
+
 export function ensureInstalledAt(): LocalState {
   return updateState((state) => {
     if (state.installedAt) return state;
