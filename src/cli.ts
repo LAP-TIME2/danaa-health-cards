@@ -47,7 +47,7 @@ const ALLOWED_LOCAL_LOGIN_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::
 const SENSITIVE_LOGIN_QUERY_KEY = /(?:^|_|\b)(access[_-]?token|refresh[_-]?token|token|jwt|secret|session|cookie|email|device[_-]?code|user[_-]?code)(?:$|_|\b)/iu;
 const CLAUDE_SKILL_TEXT = `---
 name: danaa-checkin
-description: DANAA health check-in cards and number answers.
+description: DANAA check-in cards and account tools. Korean triggers: 질문카드, 다나아 계정 변경, 계정 전환, DANAA 연결 상태.
 ---
 
 # DANAA Check-in
@@ -58,10 +58,11 @@ description: DANAA health check-in cards and number answers.
 - If the user answers with numbers such as "1", "2 1", or "1,2", call \`danaa_checkin_answer_latest_numbers\` with the numbers in order.
 - If the user says skip, 스킵, 건너뛰기, call \`danaa_checkin_skip_latest\`.
 - If the user says 30분 뒤, 1시간 뒤, 2시간 뒤, 오늘 그만, call \`danaa_checkin_snooze\`.
-- If the user asks which DANAA account is connected or says "DANAA 연결 상태", call \`danaa_account_status\`.
-- If the user asks to connect DANAA, call \`danaa_account_login_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
-- If the user asks to switch DANAA accounts, call \`danaa_account_switch_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
-- If the user asks to log out or disconnect DANAA, call \`danaa_account_logout\`.
+- If the user asks which DANAA account is connected or says "DANAA 연결 상태", "다나아 연결 상태", or "현재 연결된 계정", call \`danaa_account_status\`.
+- If the user asks to connect DANAA or says "다나아 연결해줘", call \`danaa_account_login_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
+- If the user asks to switch DANAA accounts or says "다나아 계정 변경", "DANAA 계정 변경", "다나아 계정 전환", "계정 전환해줘", or "계정 바꿔줘", call \`danaa_account_switch_start\` immediately. Do not ask whether this is an app, DB, env, GitHub, or deployment account change.
+- After showing the switch/login link and code, if the user says "승인 완료", "승인완료", "완료", or "했어", call \`danaa_account_login_finish\`.
+- If the user asks to log out or disconnect DANAA or says "다나아 로그아웃", "다나아 연결 해제", call \`danaa_account_logout\`.
 - Never infer health answers from the surrounding coding conversation.
 - Never ask for or print tokens. DANAA tokens live in the OS keyring.
 - Keep wording short and say this is lifestyle tracking, not medical advice.
@@ -69,7 +70,7 @@ description: DANAA health check-in cards and number answers.
 
 const CODEX_SKILL_TEXT = `---
 name: danaa-checkin
-description: DANAA health check-in cards and number answers.
+description: DANAA check-in cards and account tools. Korean triggers: 질문카드, 다나아 계정 변경, 계정 전환, DANAA 연결 상태.
 ---
 
 # DANAA Check-in
@@ -83,10 +84,11 @@ description: DANAA health check-in cards and number answers.
 - If the user answers with numbers such as "1", "2 1", or "1,2", call \`danaa_checkin_answer_latest_numbers\` with the numbers in order.
 - If the user says skip, 스킵, 건너뛰기, call \`danaa_checkin_skip_latest\`.
 - If the user says 30분 뒤, 1시간 뒤, 2시간 뒤, 오늘 그만, call \`danaa_checkin_snooze\`.
-- If the user asks which DANAA account is connected or says "DANAA 연결 상태", call \`danaa_account_status\`.
-- If the user asks to connect DANAA, call \`danaa_account_login_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
-- If the user asks to switch DANAA accounts, call \`danaa_account_switch_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
-- If the user asks to log out or disconnect DANAA, call \`danaa_account_logout\`.
+- If the user asks which DANAA account is connected or says "DANAA 연결 상태", "다나아 연결 상태", or "현재 연결된 계정", call \`danaa_account_status\`.
+- If the user asks to connect DANAA or says "다나아 연결해줘", call \`danaa_account_login_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
+- If the user asks to switch DANAA accounts or says "다나아 계정 변경", "DANAA 계정 변경", "다나아 계정 전환", "계정 전환해줘", or "계정 바꿔줘", call \`danaa_account_switch_start\` immediately. Do not ask whether this is an app, DB, env, GitHub, or deployment account change.
+- After showing the switch/login link and code, if the user says "승인 완료", "승인완료", "완료", or "했어", call \`danaa_account_login_finish\`.
+- If the user asks to log out or disconnect DANAA or says "다나아 로그아웃", "다나아 연결 해제", call \`danaa_account_logout\`.
 - Never infer health answers from the surrounding coding conversation.
 - Never ask for or print tokens. DANAA tokens live in the OS keyring.
 - Keep wording short and say this is lifestyle tracking, not medical advice.

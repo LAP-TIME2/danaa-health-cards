@@ -84,6 +84,9 @@ describe("login browser helpers", () => {
     const claudeSkill = skillTextForClient("claude");
 
     for (const skill of [codexSkill, claudeSkill]) {
+      expect(skill).toContain("다나아 계정 변경");
+      expect(skill).toContain("계정 전환해줘");
+      expect(skill).toContain("Do not ask whether this is an app, DB, env, GitHub, or deployment account change");
       expect(skill).toContain("danaa_account_status");
       expect(skill).toContain("danaa_account_login_start");
       expect(skill).toContain("danaa_account_switch_start");
@@ -91,5 +94,15 @@ describe("login browser helpers", () => {
       expect(skill).toContain("danaa_account_logout");
       expect(skill).toContain("Never ask for or print tokens");
     }
+  });
+
+  it("keeps skill descriptions short but explicit enough for Korean account triggers", () => {
+    const codexSkill = skillTextForClient("codex");
+    const descriptionLine = codexSkill.split("\n").find((line) => line.startsWith("description:"));
+
+    expect(descriptionLine).toContain("질문카드");
+    expect(descriptionLine).toContain("다나아 계정 변경");
+    expect(descriptionLine).toContain("DANAA 연결 상태");
+    expect(descriptionLine?.length ?? 0).toBeLessThanOrEqual(150);
   });
 });
