@@ -8,7 +8,8 @@ import { pathToFileURL } from "node:url";
 import {
   answerCheckin,
   DanaaApiError,
-  danaaFetch,
+  type DeviceToken,
+  exchangeDeviceToken,
   getApiBase,
   getSettings,
   nextCheckin,
@@ -16,27 +17,14 @@ import {
   setApiBase,
   skipCheckin,
   snoozeCheckin,
+  startDeviceLogin,
   type DanaaNextCheckin
 } from "./api.js";
 import { formatCard } from "./format.js";
 import { runStopHook } from "./hook.js";
-import { completeLatestCard, ensureInstalledAt, getDataDir, readState, rememberLatestCard, updateState } from "./local-state.js";
+import { clearAccountState, completeLatestCard, ensureInstalledAt, getDataDir, readState, rememberLatestCard, updateState } from "./local-state.js";
 import { redact } from "./security/redact.js";
 import { deleteStoredToken, saveStoredToken, TokenStoreError } from "./token-store.js";
-
-type DeviceStart = {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  expires_in: number;
-  interval: number;
-};
-
-type DeviceToken = {
-  access_token: string;
-  expires_in: number;
-  scopes: string[];
-};
 
 type SetupScope = "user" | "local";
 
@@ -70,6 +58,10 @@ description: DANAA health check-in cards and number answers.
 - If the user answers with numbers such as "1", "2 1", or "1,2", call \`danaa_checkin_answer_latest_numbers\` with the numbers in order.
 - If the user says skip, 스킵, 건너뛰기, call \`danaa_checkin_skip_latest\`.
 - If the user says 30분 뒤, 1시간 뒤, 2시간 뒤, 오늘 그만, call \`danaa_checkin_snooze\`.
+- If the user asks which DANAA account is connected or says "DANAA 연결 상태", call \`danaa_account_status\`.
+- If the user asks to connect DANAA, call \`danaa_account_login_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
+- If the user asks to switch DANAA accounts, call \`danaa_account_switch_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
+- If the user asks to log out or disconnect DANAA, call \`danaa_account_logout\`.
 - Never infer health answers from the surrounding coding conversation.
 - Never ask for or print tokens. DANAA tokens live in the OS keyring.
 - Keep wording short and say this is lifestyle tracking, not medical advice.
@@ -91,6 +83,10 @@ description: DANAA health check-in cards and number answers.
 - If the user answers with numbers such as "1", "2 1", or "1,2", call \`danaa_checkin_answer_latest_numbers\` with the numbers in order.
 - If the user says skip, 스킵, 건너뛰기, call \`danaa_checkin_skip_latest\`.
 - If the user says 30분 뒤, 1시간 뒤, 2시간 뒤, 오늘 그만, call \`danaa_checkin_snooze\`.
+- If the user asks which DANAA account is connected or says "DANAA 연결 상태", call \`danaa_account_status\`.
+- If the user asks to connect DANAA, call \`danaa_account_login_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
+- If the user asks to switch DANAA accounts, call \`danaa_account_switch_start\`, show the returned link/code, then after the user says approval is complete call \`danaa_account_login_finish\`.
+- If the user asks to log out or disconnect DANAA, call \`danaa_account_logout\`.
 - Never infer health answers from the surrounding coding conversation.
 - Never ask for or print tokens. DANAA tokens live in the OS keyring.
 - Keep wording short and say this is lifestyle tracking, not medical advice.
@@ -261,10 +257,7 @@ export function loginInstructionLines(
 }
 
 async function login(options: Pick<CliOptions, "noOpen"> = { noOpen: false }): Promise<void> {
-  const start = await danaaFetch<DeviceStart>("/external-auth/device/start", {
-    method: "POST",
-    body: { client_name: "DANAA Health Cards CLI", client_type: "cli" }
-  });
+  const start = await startDeviceLogin();
   console.log("DANAA device login");
   const browserOpened = options.noOpen ? false : openBrowser(start.verification_uri);
   loginInstructionLines(start.verification_uri, start.user_code, options.noOpen ? "skipped" : browserOpened ? "opened" : "failed").forEach((line) =>
@@ -275,10 +268,7 @@ async function login(options: Pick<CliOptions, "noOpen"> = { noOpen: false }): P
   while (Date.now() < deadline) {
     await sleep(start.interval * 1000);
     try {
-      const token = await danaaFetch<DeviceToken>("/external-auth/device/token", {
-        method: "POST",
-        body: { device_code: start.device_code }
-      });
+      const token: DeviceToken = await exchangeDeviceToken(start.device_code);
       console.log("");
       console.log("Login approved.");
       try {
@@ -790,6 +780,7 @@ async function logout(): Promise<void> {
     // Local logout must still work if the server is unavailable or the token is already invalid.
   }
   const deleted = deleteStoredToken();
+  clearAccountState();
   console.log(deleted ? "DANAA token removed from OS keyring." : "No DANAA token was found in OS keyring.");
 }
 
