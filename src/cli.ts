@@ -52,7 +52,8 @@ type CliOptions = {
 
 const MCP_NAME = "danaa-health-cards";
 const GITHUB_PACKAGE = "github:LAP-TIME2/danaa-health-cards";
-const AFTER_ANSWER_AUTO_SUPPRESS_MINUTES = 10;
+// Prevents same-turn Stop hook duplication without hiding the next card for a whole work session.
+const AFTER_ANSWER_AUTO_SUPPRESS_MINUTES = 0.25;
 const ALLOWED_HTTPS_LOGIN_HOSTS = new Set(["danaa-project.vercel.app", "danaa.r-e.kr"]);
 const ALLOWED_LOCAL_LOGIN_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const SENSITIVE_LOGIN_QUERY_KEY = /(?:^|_|\b)(access[_-]?token|refresh[_-]?token|token|jwt|secret|session|cookie|email|device[_-]?code|user[_-]?code)(?:$|_|\b)/iu;
