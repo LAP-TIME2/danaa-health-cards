@@ -78,4 +78,18 @@ describe("login browser helpers", () => {
     expect(codexSkill).not.toContain("show the returned text once");
     expect(claudeSkill).toContain("show the returned text once");
   });
+
+  it("teaches Claude and Codex to use account management tools without exposing tokens", () => {
+    const codexSkill = skillTextForClient("codex");
+    const claudeSkill = skillTextForClient("claude");
+
+    for (const skill of [codexSkill, claudeSkill]) {
+      expect(skill).toContain("danaa_account_status");
+      expect(skill).toContain("danaa_account_login_start");
+      expect(skill).toContain("danaa_account_switch_start");
+      expect(skill).toContain("danaa_account_login_finish");
+      expect(skill).toContain("danaa_account_logout");
+      expect(skill).toContain("Never ask for or print tokens");
+    }
+  });
 });

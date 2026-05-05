@@ -48,6 +48,20 @@ export type DanaaSnoozeResponse = {
   message: string;
 };
 
+export type DeviceStart = {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  expires_in: number;
+  interval: number;
+};
+
+export type DeviceToken = {
+  access_token: string;
+  expires_in: number;
+  scopes: string[];
+};
+
 type RequestOptions = {
   method?: string;
   body?: unknown;
@@ -147,6 +161,20 @@ export async function danaaFetch<T>(path: string, options: RequestOptions = {}):
 export async function nextCheckin(): Promise<DanaaNextCheckin> {
   return danaaFetch<DanaaNextCheckin>("/external/checkins/next", {
     token: getTokenFromEnv()
+  });
+}
+
+export async function startDeviceLogin(clientName = "DANAA Health Cards CLI"): Promise<DeviceStart> {
+  return danaaFetch<DeviceStart>("/external-auth/device/start", {
+    method: "POST",
+    body: { client_name: clientName, client_type: "cli" }
+  });
+}
+
+export async function exchangeDeviceToken(deviceCode: string): Promise<DeviceToken> {
+  return danaaFetch<DeviceToken>("/external-auth/device/token", {
+    method: "POST",
+    body: { device_code: deviceCode }
   });
 }
 

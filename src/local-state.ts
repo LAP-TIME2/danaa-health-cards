@@ -13,6 +13,13 @@ export type LocalState = {
   autoSuppressedUntil?: string;
   snoozeUntil?: string;
   dndUntil?: string;
+  pendingDeviceLogin?: {
+    deviceCode: string;
+    userCode: string;
+    verificationUri: string;
+    expiresAt: string;
+    intervalSeconds: number;
+  };
 };
 
 export function getDataDir(): string {
@@ -73,6 +80,40 @@ export function completeLatestCard(leaseId?: string, suppressMinutes = 0.25): Lo
     const { latestCard, latestLeaseId, ...rest } = state;
     return { ...rest, autoSuppressedUntil };
   });
+}
+
+export function rememberPendingDeviceLogin(input: {
+  deviceCode: string;
+  userCode: string;
+  verificationUri: string;
+  expiresIn: number;
+  intervalSeconds: number;
+}): LocalState {
+  const expiresAt = new Date(Date.now() + input.expiresIn * 1000).toISOString();
+  return updateState((state) => ({
+    ...state,
+    pendingDeviceLogin: {
+      deviceCode: input.deviceCode,
+      userCode: input.userCode,
+      verificationUri: input.verificationUri,
+      expiresAt,
+      intervalSeconds: input.intervalSeconds
+    }
+  }));
+}
+
+export function clearPendingDeviceLogin(): LocalState {
+  return updateState((state) => {
+    const { pendingDeviceLogin, ...rest } = state;
+    return rest;
+  });
+}
+
+export function clearAccountState(): LocalState {
+  return updateState((state) => ({
+    installedAt: state.installedAt,
+    lastHookTurnId: state.lastHookTurnId
+  }));
 }
 
 export function ensureInstalledAt(): LocalState {

@@ -3,10 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   answerCheckin,
   DEFAULT_DANAA_API_BASE,
+  exchangeDeviceToken,
   getApiBase,
   setApiBase,
   skipCheckin,
-  snoozeCheckin
+  snoozeCheckin,
+  startDeviceLogin
 } from "../src/api.js";
 
 describe("api base", () => {
@@ -85,5 +87,40 @@ describe("api base", () => {
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://danaa.r-e.kr/api/v1/external/checkins/snooze");
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ duration_minutes: 60 });
+  });
+
+  it("starts and finishes device login without requiring an existing token", async () => {
+    delete process.env.DANAA_HEALTH_TOKEN;
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            device_code: "device-code",
+            user_code: "ABCD-EFGH",
+            verification_uri: "https://danaa-project.vercel.app/settings/integrations/danaa-health-cards",
+            expires_in: 600,
+            interval: 5
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "new-token", expires_in: 3600, scopes: ["checkin"] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+
+    await startDeviceLogin("DANAA Health Cards MCP");
+    await exchangeDeviceToken("device-code");
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://danaa.r-e.kr/api/v1/external-auth/device/start");
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      client_name: "DANAA Health Cards MCP",
+      client_type: "cli"
+    });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("https://danaa.r-e.kr/api/v1/external-auth/device/token");
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ device_code: "device-code" });
   });
 });
