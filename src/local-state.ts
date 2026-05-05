@@ -64,7 +64,7 @@ export function clearLatestCard(leaseId?: string): void {
   });
 }
 
-export function completeLatestCard(leaseId?: string, suppressMinutes = 10): LocalState {
+export function completeLatestCard(leaseId?: string, suppressMinutes = 0.25): LocalState {
   const autoSuppressedUntil = new Date(Date.now() + suppressMinutes * 60 * 1000).toISOString();
   return updateState((state) => {
     if (leaseId && state.latestLeaseId && state.latestLeaseId !== leaseId) {

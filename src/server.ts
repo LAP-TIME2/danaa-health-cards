@@ -22,7 +22,8 @@ import { clearLatestCard, completeLatestCard, isFuture, readState, rememberLates
 import { redact } from "./security/redact.js";
 
 const leaseCache = new Map<string, DanaaNextCheckin>();
-const AFTER_ANSWER_AUTO_SUPPRESS_MINUTES = 10;
+// Prevents same-turn Stop hook duplication without hiding the next card for a whole work session.
+const AFTER_ANSWER_AUTO_SUPPRESS_MINUTES = 0.25;
 
 function rememberCard(card: DanaaNextCheckin): void {
   if (!card.lease_id) return;

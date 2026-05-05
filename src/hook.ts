@@ -1,14 +1,13 @@
 import { closeSync, existsSync, mkdirSync, openSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
-import { nextCheckin } from "./api.js";
+import { nextCheckin, type DanaaNextCheckin } from "./api.js";
 import { formatAutoHookInstruction } from "./format.js";
 import {
   ensureInstalledAt,
   getDataDir,
   isFuture,
   rememberLatestCard,
-  suppressAutoForMinutes,
   updateState
 } from "./local-state.js";
 
@@ -53,9 +52,22 @@ function shouldSkipByLocalState(input: StopHookInput): boolean {
   const state = ensureInstalledAt();
   if (isFuture(state.snoozeUntil) || isFuture(state.dndUntil) || isFuture(state.autoSuppressedUntil)) return true;
   if (input.turn_id && state.lastHookTurnId === input.turn_id) return true;
-  if (state.latestLeaseId && isFuture(state.latestCard?.expires_at ?? undefined)) return true;
 
   return false;
+}
+
+function latestPendingLocalCard(): DanaaNextCheckin | null {
+  const state = ensureInstalledAt();
+  if (!state.latestLeaseId || !state.latestCard) return null;
+  if (!state.latestCard.has_question || !state.latestCard.lease_id) return null;
+  if (!isFuture(state.latestCard.expires_at ?? undefined)) return null;
+  return state.latestCard;
+}
+
+export function selectHookCard(serverCard: DanaaNextCheckin, localCard: DanaaNextCheckin | null): DanaaNextCheckin | null {
+  if (serverCard.has_question && serverCard.lease_id) return serverCard;
+  if (serverCard.blocked_reason === "active_lease" && localCard) return localCard;
+  return null;
 }
 
 function outputContinuation(reason: string): void {
@@ -110,19 +122,21 @@ export async function runStopHook(client: HookClient): Promise<void> {
     releaseLock = acquireHookLock();
     if (!releaseLock) return;
 
+    const localCard = latestPendingLocalCard();
     const card = await nextCheckin();
     updateState((state) => ({
       ...state,
       lastHookTurnId: input.turn_id ?? state.lastHookTurnId
     }));
 
-    if (!card.has_question || !card.lease_id) {
+    const cardToShow = selectHookCard(card, localCard);
+    if (!cardToShow) {
       rememberBlockedCheckin(card);
       return;
     }
 
-    rememberLatestCard(card);
-    outputContinuation(formatAutoHookInstruction(card));
+    rememberLatestCard(cardToShow);
+    outputContinuation(formatAutoHookInstruction(cardToShow));
   } catch {
     // Hooks must never interrupt coding work. Any API, keyring, local-state, or client encoding failure fails silently.
     return;

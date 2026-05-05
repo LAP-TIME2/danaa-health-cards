@@ -106,4 +106,24 @@ describe("local state", () => {
     expect(state.latestCard).toBeUndefined();
     expect(isFuture(state.autoSuppressedUntil)).toBe(true);
   });
+
+  it("uses a short default suppression after completing a card", () => {
+    rememberLatestCard({
+      has_question: true,
+      lease_id: "lease-short-suppress",
+      bundle_key: "bundle_1",
+      bundle_name: "Sleep",
+      log_date: "2026-05-04",
+      expires_at: "2099-01-01T00:00:00+09:00",
+      questions: [],
+      notice: "Lifestyle check-in only"
+    });
+
+    const before = Date.now();
+    completeLatestCard("lease-short-suppress");
+    const suppressMs = Date.parse(readState().autoSuppressedUntil ?? "") - before;
+
+    expect(suppressMs).toBeGreaterThan(0);
+    expect(suppressMs).toBeLessThanOrEqual(30_000);
+  });
 });
